@@ -1,0 +1,41 @@
+Bootstrap: docker
+From: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+Stage: builder
+
+%setup
+    mkdir ${SINGULARITY_ROOTFS}/app
+    rsync -av --exclude-from=.dockerignore ./ ${SINGULARITY_ROOTFS}/app
+    rsync -av models/ ${SINGULARITY_ROOTFS}/app/models
+
+%post
+    export UV_COMPILE_BYTECODE=1
+    export UV_LINK_MODE=copy
+    export UV_NO_EDITABLE=1
+    export UV_FROZEN=1
+    cd /app
+    uv sync --no-dev
+
+Bootstrap: docker
+From: python:3.12-slim-bookworm
+Stage: final
+
+%setup
+    rsync -av models/ ${SINGULARITY_ROOTFS}/app/models
+
+%files from builder
+    /app /app
+
+%post
+    apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        && rm -rf /var/lib/apt/lists/*
+
+    chmod -R a+rX /app
+    find /app -type f -name "*.py" -exec chmod a+r {} \;
+
+%environment
+    export PATH="/app/.venv/bin:$PATH"
+
+%runscript
+    cd /app
+    python3 main.py "$@"
