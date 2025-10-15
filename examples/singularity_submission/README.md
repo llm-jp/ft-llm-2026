@@ -1,5 +1,6 @@
 ```
-$ singularity build --fakeroot dist/submission.sif submission.def
+$ singularity build --bind $(uv cache dir):/root/.cache/uv --fakeroot \
+    dist/submission.sif submission.def
 
 $ singularity run --nv --writable-tmpfs --env CUDA_VISIBLE_DEVICES=0 \
     dist/submission.sif \

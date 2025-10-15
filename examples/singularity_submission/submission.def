@@ -7,6 +7,9 @@ Stage: builder
     rsync -av --exclude-from=.dockerignore ./ ${SINGULARITY_ROOTFS}/app
     rsync -av models/ ${SINGULARITY_ROOTFS}/app/models
 
+    # Create mount point for the uv cache (will be used if --bind is specified)
+    mkdir -p ${SINGULARITY_ROOTFS}/root/.cache/uv
+
 %post
     export UV_COMPILE_BYTECODE=1
     export UV_LINK_MODE=copy
@@ -21,6 +24,10 @@ Stage: final
 
 %setup
     rsync -av models/ ${SINGULARITY_ROOTFS}/app/models
+
+    # Create mount point for the uv cache
+    # (not used in final stage, but needed for --bind to work)
+    mkdir -p ${SINGULARITY_ROOTFS}/root/.cache/uv
 
 %files from builder
     /app /app
