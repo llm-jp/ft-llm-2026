@@ -5,7 +5,6 @@ Stage: builder
 %setup
     mkdir ${SINGULARITY_ROOTFS}/app
     rsync -av --exclude-from=.dockerignore ./ ${SINGULARITY_ROOTFS}/app
-    rsync -av models/ ${SINGULARITY_ROOTFS}/app/models
 
     # Create mount point for the uv cache (will be used if --bind is specified)
     mkdir -p ${SINGULARITY_ROOTFS}/root/.cache/uv
@@ -22,8 +21,25 @@ Bootstrap: docker
 From: python:3.12-slim-bookworm
 Stage: final
 
+%arguments
+    MODEL_NAMES=""
+
 %setup
-    rsync -av models/ ${SINGULARITY_ROOTFS}/app/models
+    mkdir -p ${SINGULARITY_ROOTFS}/app/models
+    MODEL_NAMES={{ MODEL_NAMES }}
+
+    if [[ -n "${MODEL_NAMES}" ]]; then
+        for model in ${MODEL_NAMES}; do
+            if [ ! -d "models/${model}" ]; then
+                echo "Requested model directory models/${model} was not found" >&2
+                exit 1
+            fi
+            rsync -av "models/${model}/" "${SINGULARITY_ROOTFS}/app/models/${model}/"
+        done
+    else
+        echo "No models were copied into the image. Use --build-arg MODEL_NAMES=\"name1 name2\"" >&2
+        exit 1
+    fi
 
     # Create mount point for the uv cache
     # (not used in final stage, but needed for --bind to work)

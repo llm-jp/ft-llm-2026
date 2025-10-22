@@ -16,7 +16,7 @@ def main():
 
     model_path = snapshot_download(
         repo_id=args.model_name,
-        local_dir=Path("models") / args.model_name.replace("/", "_"),
+        local_dir=Path("models") / args.model_name,
         local_dir_use_symlinks=False,
     )
 
