@@ -1,7 +1,7 @@
 # math-eval
 
 `math-eval` は数学タスクの評価ツールです．
-本ツールは　[Math-Verify](https://github.com/huggingface/Math-Verify) を使用して回答の抽出，正規化，一致判定を行います．
+本ツールは [Math-Verify](https://github.com/huggingface/Math-Verify) を使用して回答の抽出，正規化，一致判定を行います．
 
 ### インストール
 
@@ -17,4 +17,4 @@ uvx --from "git+https://github.com/llm-jp/ft-llm-2026#subdirectory=math-eval" ma
 
 `<path/to/predictions.jsonl>` はモデルの予測を含む JSONL ファイルへのパス，`<path/to/gold.jsonl>` は正解を含む JSONL ファイルへのパスです．
 `examples/` ディレクトリに例があります．
-`-o` オプションでファイル名を指定すると，評価結果が JSON 形式で保存されます．
+`-o` オプションでファイル名を指定すると評価結果が JSON 形式で保存されます．
