@@ -18,7 +18,7 @@ Install `uv` to run the script following the official guidelines:
 To run the evaluation, use the following command:
 
 ```bash
-uvx --from git+https://github.com/llm-jp/ft-llm-2026-scripts#subdirectory=math-eval math-eval <path/to/predictions.jsonl> <path/to/gold.jsonl> [-o <path/to/output.json>]
+uvx --from "git+https://github.com/llm-jp/ft-llm-2026#subdirectory=math-eval" math-eval <path/to/predictions.jsonl> <path/to/gold.jsonl> [-o <path/to/output.json>]
 ```
 
 where `<path/to/predictions.jsonl>` is the path to the JSONL file containing model predictions, while `<path/to/gold.jsonl>` is the path to the JSONL file containing gold answers.
