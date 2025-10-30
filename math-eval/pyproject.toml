@@ -1,0 +1,23 @@
+[build-system]
+requires = ["uv_build>=0.9.5,<0.10.0"]
+build-backend = "uv_build"
+
+[project]
+name = "math-eval"
+version = "0.1.0"
+description = "Evaluation tool for the math task in FT-LLM-2026."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "math-verify[antlr4-13-2]>=0.8.0",
+    "rich>=14.2.0",
+    "typer>=0.20.0",
+]
+
+[project.scripts]
+math-eval = "math_eval.main:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
