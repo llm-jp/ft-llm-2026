@@ -39,10 +39,18 @@ def load_examples(file_path: str, example_cls: type) -> dict[str, Any]:
     id_example_map = {}
     with open(file_path, "r", encoding="utf-8") as f:
         for line in f:
-            item = json.loads(line)
-            example = example_cls(**item)
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError as e:
+                err_console.log(f"Error decoding JSON line in '{file_path}': {e}")
+                continue
+            try:
+                example = example_cls(**item)
+            except TypeError as e:
+                err_console.log(f"Error creating {example_cls.__name__} from line in '{file_path}': {e}")
+                continue
             if example.id in id_example_map:
-                raise ValueError(f"Duplicate example ID found in {file_path}: {example.id}")
+                err_console.log(f"Duplicate example ID '{example.id}' found in '{file_path}'; overwriting previous entry.")
             id_example_map[example.id] = example
     return id_example_map
 
@@ -75,11 +83,13 @@ def math_eval(
     """Evaluate predictions on mathematical reasoning tasks."""
     id_prediction_map = load_examples(prediction_file, PredictionExample)
     id_gold_map = load_examples(gold_file, GoldExample)
-    if set(id_prediction_map.keys()) != set(id_gold_map.keys()):
-        raise ValueError("Prediction and gold examples do not match.")
 
     id_result_map: dict[str, bool] = {}
-    for id_ in id_prediction_map:
+    for id_ in id_gold_map:
+        if id_ not in id_prediction_map:
+            err_console.log(f"Missing prediction for example ID '{id_}'; counting as incorrect.")
+            id_result_map[id_] = False
+            continue
         prediction = id_prediction_map[id_]
         gold = id_gold_map[id_]
         id_result_map[id_] = parse_and_verify(prediction.output, gold.answer)
@@ -111,4 +121,4 @@ def math_eval(
                     indent=2,
                 )
             )
-        err_console.log(f"Results written to {output_file}.")
+        err_console.log(f"Results written to '{output_file}'.")
