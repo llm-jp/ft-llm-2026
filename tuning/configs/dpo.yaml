@@ -1,0 +1,89 @@
+defaults:
+  - base
+  - exp_manager: dpo
+  - model: llmjp4-8b
+  - trainer: dpo
+  - _self_
+
+# preference datasets
+  # max_train_samples: max number of samples to use for training. -1 means all. 0 means not to use.
+  # split_dev: whether to split the dataset into training and validation datasets. If false, the dataset is used for training only.
+  # upsampling_factor: upsampling factor for the dataset. 1 means no upsampling. Valid for both training and validation datasets.
+datasets:
+  llmjp_extraction_wiki_ja_v0.3:
+    max_train_samples: -1 # -1 means all
+    split_dev: true
+    upsampling_factor: 1
+# number of dev samples are the minimum value of {max_dev_samples, max_dev_ratio * number of dev samples} in the dataset.
+max_dev_samples: 100
+max_dev_ratio: 0.1
+
+
+# hyperparameters
+gbs: 256
+mbs: 1
+dropout: 0.0
+lr: 9e-7
+min_lr: 5e-7
+
+# data
+data:
+  data_impl: jsonl
+  splits_string: null
+  seq_length: ${model.encoder_seq_length}
+  skip_warmup: True
+  num_workers: 0
+  dataloader_type: single # cyclic
+  reset_position_ids: False # Reset position ids after end-of-document token
+  reset_attention_mask: False # Reset attention mask after end-of-document token
+  eod_mask_loss: False # Mask loss for the end of document tokens
+  index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
+  default_chosen_reward: 1. # the default reward for the chosen response in RPO
+  default_rejected_reward: 0. # the default reward for the rejected response in RPO
+  data_prefix:
+    train:
+    validation:
+  train_ds:
+    global_batch_size: ${gbs}
+    micro_batch_size: ${mbs}
+  validation_ds:
+    global_batch_size: ${gbs}
+    micro_batch_size: ${mbs}
+
+dpo:
+  log_prob_forward_micro_batch_size: 1
+  ref_policy_kl_penalty: 0.1
+  preference_average_log_probs: False # whether normalizing log probs according to the sequence length in preference_loss
+  sft_average_log_probs: ${.preference_average_log_probs} # whether normalizing log probs according to the sequence length in sft_loss
+  gt_reward_scale: 1. # the scale of the rewards in RPO
+  preference_loss: dpo # the preference loss, we support dpo, ipo, rpo_sq, rpo_bwd_kl, rpo_fwd_kl
+  preference_loss_weight: 1 # the coefficient of the preference loss
+  sft_loss_weight: 0 # the coefficient of the SFT loss
+
+# other options
+use_mpi: false
+use_slurm: false # This option should be set to true when using Slurm and MPI. Otherwise, set it to false.
+
+ignore_hparams_on_save: false
+
+# constants
+hparams_to_ignore_on_save:
+  - project
+  - work_dir
+  - data_dir
+  - seed
+  - name
+  - exp_dir
+  - run_id
+  - run_dir
+  - config_name
+  - logger
+  - hparams_to_ignore_on_save
+  - per_device_train_batch_size
+  - per_device_eval_batch_size
+  - gradient_checkpointing
+  - logging_steps
+  - eval_steps
+  - save_steps
+  - use_mpi
+  - use_slurm
