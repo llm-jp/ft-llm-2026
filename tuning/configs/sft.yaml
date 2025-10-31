@@ -1,0 +1,68 @@
+defaults:
+  - base
+  - exp_manager: sft
+  - model: llmjp4-8b
+  - trainer: sft
+  - _self_
+
+data:
+  train_ds:
+    data_dir: ${data_dir}/tuning/train
+    global_batch_size: ${gbs}
+    micro_batch_size: ${mbs}
+  validation_ds:
+    data_dir: ${data_dir}/tuning/dev
+    global_batch_size: ${gbs}
+    micro_batch_size: ${mbs}
+
+# tuning datasets
+  # max_train_samples: max number of samples to use for training. -1 means all. 0 means not to use.
+  # split_dev: whether to split the dataset into training and validation datasets. If false, the dataset is used for training only.
+  # upsampling_factor: upsampling factor for the dataset. 1 means no upsampling. Valid for both training and validation datasets.
+datasets:
+  llmjp_extraction_wiki_ja_v0.2:
+    max_train_samples: -1 # -1 means all
+    split_dev: true
+    upsampling_factor: 1
+  llmjp_extraction_wiki_ja_v0.3:
+    max_train_samples: -1 # -1 means all
+    split_dev: true
+    upsampling_factor: 1
+# number of dev samples are the minimum value of {max_dev_samples, max_dev_ratio * number of dev samples} in the dataset.
+max_dev_samples: 100
+max_dev_ratio: 0.1
+
+# hyperparameters
+gbs: 64
+mbs: 1
+dropout: 0.0
+lr: 2e-5
+min_lr: 2e-6
+
+# other options
+use_mpi: false
+use_slurm: false # This option should be set to true when using Slurm and MPI. Otherwise, set it to false.
+
+ignore_hparams_on_save: false
+
+# constants
+hparams_to_ignore_on_save:
+  - project
+  - work_dir
+  - data_dir
+  - seed
+  - name
+  - exp_dir
+  - run_id
+  - run_dir
+  - config_name
+  - logger
+  - hparams_to_ignore_on_save
+  - per_device_train_batch_size
+  - per_device_eval_batch_size
+  - gradient_checkpointing
+  - logging_steps
+  - eval_steps
+  - save_steps
+  - use_mpi
+  - use_slurm
