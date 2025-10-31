@@ -1,0 +1,5 @@
+cache/
+base_checkpoints/
+checkpoints/
+checkpoints_hf/
+logs/
