@@ -1,6 +1,6 @@
-{"id": "1", "output": "The answer is \\boxed{2}."}
-{"id": "2", "output": "The answer is \\boxed{6}."}
-{"id": "3", "output": "The answer is \\boxed{3}."}
-{"id": "4", "output": "The answer is \\boxed{1}."}
-{"id": "5", "output": "The answer is \\boxed{3}."}
-{"id": "6", "output": "The answer is \\boxed{1}."}
+{"id": "1", "question": "1+1は?", "solution": "2", "category": "小学1年生", "unit": "足し算", "output": "The answer is \\boxed{2}."}
+{"id": "2", "question": "1+4は?", "solution": "5", "category": "小学1年生", "unit": "足し算", "output": "The answer is \\boxed{6}."}
+{"id": "3", "question": "5-2は?", "solution": "3", "category": "小学1年生", "unit": "引き算", "output": "The answer is \\boxed{3}."}
+{"id": "4", "question": "8-5は?", "solution": "3", "category": "小学1年生", "unit": "引き算", "output": "The answer is \\boxed{1}."}
+{"id": "5", "question": "3x3は?", "solution": "9", "category": "小学2年生", "unit": "掛け算", "output": "The answer is \\boxed{3}."}
+{"id": "6", "question": "2x4は?", "solution": "8", "category": "小学2年生", "unit": "掛け算", "output": "The answer is \\boxed{1}."}
