@@ -23,7 +23,7 @@ err_console = Console(stderr=True)
 @dataclasses.dataclass
 class PredictionExample:
     id: str
-    question: str
+    problem: str
     solution: str
     category: str
     unit: str
@@ -33,7 +33,7 @@ class PredictionExample:
 @dataclasses.dataclass
 class GoldExample:
     id: str
-    question: str
+    problem: str
     solution: str
     category: str
     unit: str
