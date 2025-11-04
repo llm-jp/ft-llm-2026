@@ -119,6 +119,7 @@ def math_eval(
                         "detailed_results": id_result_map,
                     },
                     indent=2,
+                    ensure_ascii=False,
                 )
             )
         err_console.log(f"Results written to '{output_file}'.")
