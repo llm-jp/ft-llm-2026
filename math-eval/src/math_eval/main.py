@@ -23,6 +23,10 @@ err_console = Console(stderr=True)
 @dataclasses.dataclass
 class PredictionExample:
     id: str
+    question: str
+    solution: str
+    category: str
+    unit: str
     output: str
 
 
@@ -30,8 +34,9 @@ class PredictionExample:
 class GoldExample:
     id: str
     question: str
-    answer: str
+    solution: str
     category: str
+    unit: str
 
 
 def load_examples(file_path: str, example_cls: type) -> dict[str, Any]:
@@ -92,7 +97,7 @@ def math_eval(
             continue
         prediction = id_prediction_map[id_]
         gold = id_gold_map[id_]
-        id_result_map[id_] = parse_and_verify(prediction.output, gold.answer)
+        id_result_map[id_] = parse_and_verify(prediction.output, gold.solution)
     
     overall_accuracy = accuracy(list(id_result_map.values()))
     category_result_map: dict[str, list[bool]] = {}
@@ -119,6 +124,7 @@ def math_eval(
                         "detailed_results": id_result_map,
                     },
                     indent=2,
+                    ensure_ascii=False,
                 )
             )
         err_console.log(f"Results written to '{output_file}'.")
