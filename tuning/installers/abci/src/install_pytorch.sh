@@ -2,7 +2,7 @@
 
 echo "Installing torch ${TUNING_TORCH_VERSION}+cu${TUNING_CUDA_VERSION_SHORT} and torchvision ${TUNING_TORCHVISION_VERSION}+cu${TUNING_CUDA_VERSION_SHORT}"
 
-source ${TARGET_DIR}/venv/bin/activate
+source ${ENV_DIR}/venv/bin/activate
 
 python -m pip install \
     --no-cache-dir \
