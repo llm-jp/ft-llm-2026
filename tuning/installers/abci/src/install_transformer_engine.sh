@@ -1,7 +1,7 @@
 # Installs Transformer Engine.
 
 echo "Installing Transformer Engine with commit ${TUNING_TRANSFORMER_ENGINE_COMMIT}"
-source ${TARGET_DIR}/venv/bin/activate
+source ${ENV_DIR}/venv/bin/activate
 
 export CUDA_PATH=/apps/cuda/${TUNING_CUDA_VERSION}.${TUNING_CUDA_VERSION_PATCH}
 export CUDNN_PATH=/apps/cudnn/${TUNING_CUDNN_VERSION_WITH_PATCH}/cuda${TUNING_CUDA_VERSION}

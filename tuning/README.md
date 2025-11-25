@@ -13,7 +13,7 @@ llm-jp-4-8b は一般的な LLaMA 形式のモデルであるため，transforme
 1. 以下のコマンドでチューニング用の環境を構築します．ここで環境を構築したディレクトリ（`ENV_DIR`）は後の手順で使用します．
 
 ```bash
-cd installers
+cd installers/abci
 bash run_setup.sh $ENV_DIR
 cd ..
 ```
