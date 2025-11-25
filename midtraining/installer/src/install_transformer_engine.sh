@@ -1,7 +1,7 @@
 # Installs Transformer Engine.
 
 echo "Installing Transformer Engine ${PRETRAIN_TRANSFORMER_ENGINE_VERSION}"
-source ${TARGET_DIR}/venv/bin/activate
+source ${ENV_DIR}/venv/bin/activate
 
 # install transformer engine
 # NOTE(odashi):
