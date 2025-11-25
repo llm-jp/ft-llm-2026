@@ -2,7 +2,7 @@
 
 echo "Installing requirements"
 
-source ${TARGET_DIR}/venv/bin/activate
+source ${ENV_DIR}/venv/bin/activate
 
 python -m pip install --no-cache-dir -U -r ${SCRIPT_DIR}/src/requirements.txt
 

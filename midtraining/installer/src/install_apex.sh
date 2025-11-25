@@ -1,8 +1,8 @@
 # Install 
 
 echo "Installing apex with commit ${PRETRAIN_APEX_COMMIT}"
-source ${TARGET_DIR}/venv/bin/activate
-pushd ${TARGET_DIR}/src
+source ${ENV_DIR}/venv/bin/activate
+pushd ${ENV_DIR}/src
 
 git clone --recurse-submodules https://github.com/NVIDIA/apex
 pushd apex
@@ -21,5 +21,5 @@ python -m pip install \
   ./
 popd
 
-popd  # ${TARGET_DIR}/src
+popd  # ${ENV_DIR}/src
 deactivate
