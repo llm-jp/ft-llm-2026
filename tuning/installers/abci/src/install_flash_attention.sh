@@ -6,7 +6,7 @@ pushd ${ENV_DIR}/src
 
 git clone https://github.com/Dao-AILab/flash-attention -b v${TUNING_FLASH_ATTENTION_VERSION}
 pushd flash-attention
-python -m pip install -e .
+python -m pip install --no-build-isolation -e .
 popd
 
 deactivate
