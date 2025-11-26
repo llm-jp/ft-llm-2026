@@ -4,8 +4,7 @@
 
 今回のコンペティションモデルである llm-jp-4-8b を対象とした Supervised Fine-tuning (SFT) および Direct Preference Optimization (DPO) のコードが含まれています．
 
-**注意**
-llm-jp-4-8b は一般的な LLaMA 形式のモデルであるため，transformers や trl など他ライブラリを使用してチューニングを行うことも可能です
+**注意**: llm-jp-4-8b は一般的な LLaMA 形式のモデルであるため，transformers や trl など他ライブラリを使用してチューニングを行うことも可能です
 
 
 ## 準備
@@ -27,9 +26,12 @@ cd ..
 
 4. `configs/base_template.yaml` をコピーして `configs/base.yaml` を作成し，`FIXME` と記載されている箇所を修正してください．
    - 3 でダウンロードしたデータセットを使用する場合は `data_dir` と `data_version` は修正不要です．
-   - `entity` は wandb のアカウント名に修正してください．
    - `project` は wandb のプロジェクト名に修正してください．
+   - `entity` は wandb のアカウント名に修正してください．
    - `work_dir` は実験結果の保存先に修正してください．モデルのチェックポイントが保存されるため，十分なディスク容量がある場所（`/home` 以下は非推奨）を指定してください．
+   - `hydra.job.env_set.HF_HOME` は `/home/acxxxxxx/hf_home` など，Hugging Face のキャッシュディレクトリに修正してください．`acxxxxxx` は各自のアカウント名に置き換えてください．
+   - `hydra.job.env_set.TMPDIR` は `/home/acxxxxxx/tmp` など，一時ファイルの保存先に修正してください．`acxxxxxx` は各自のアカウント名に置き換えてください．
+     - **注意**: `TMPDIR` のパスが長すぎると途中でエラーになる場合があるため，できるだけ短いパスにしてください．上記の `/home` 以下のパスであれば動作することは確認しています．
 
 ## チェックポイント変換
 
@@ -42,6 +44,8 @@ cd ..
 bash scripts/abci/converter/run_hf_to_nemo_llama.sh ${INPUT_HF_PATH} ${OUTPUT_NEMO_PATH} ${HPARAMS_FILE}
 ```
 
+`${INPUT_HF_PATH}` には Hugging Face チェックポイントのパスを指定してください（`config.json` や `model.safetensors.index.json` などが含まれるディレクトリへのパス）．
+`${OUTPUT_NEMO_PATH}` には変換後の Nemo チェックポイントの保存先パスを指定してください．
 `${HPARAMS_FILE}` には `megatron_configs/llmjp4/8b.yaml` を指定してください．
 
 変換後の NEMO チェックポイントには設定が記載された `model_config.yaml` ファイルと重みが保存された `model_weights` ディレクトリが含まれます．
@@ -55,14 +59,18 @@ bash scripts/abci/converter/run_hf_to_nemo_llama.sh ${INPUT_HF_PATH} ${OUTPUT_NE
 bash scripts/abci/converter/run_nemo_to_hf_llama.sh ${INPUT_NEMO_PATH} ${OUTPUT_HF_PATH}
 ```
 
+`${INPUT_NEMO_PATH}` は `/groups/.../xxx/{sft_or_dpo}-yyyyyyyyyy/checkpoints` のように，`checkpoints` ディレクトリを指すパスを指定してください．checkpoints ディレクトリ内の最新のチェックポイントが変換されます．
+`${OUTPUT_HF_PATH}` は変換後の Hugging Face チェックポイントの保存先パスを指定してください．
+
 ## Supervised Fine-tuning
 
 ```bash
-bash scripts/abci/train/run_sft.sh llmjp4_8b ${NUM_NODES} ${INPUT_NEMO_PATH}
+bash scripts/abci/train/run_sft.sh llmjp4_8b ${NUM_NODES} ${INPUT_NEMO_PATH} ${RANDOM_SEED}
 ```
 
 `{NUM_NODES}` は学習に使用するノード数を指定してください．
-`${INPUT_NEMO_PATH}` は Nemo チェックポイントのパスを指定してください．
+`${INPUT_NEMO_PATH}` は SFT を始める Nemo チェックポイントのパスを指定してください．`/groups/.../xxx/{sft_or_dpo}-yyyyyyyyyy/checkpoints` のように，`checkpoints` ディレクトリを指すパスを指定してください．
+`${RANDOM_SEED}` は `42` など，学習のランダムシードを指定してください．
 
 **注意:**
 この学習スクリプトでは，データをまずトークナイズし，キャッシュとして保存します．キャッシュは各 jsonl ファイルごとに作成され，pkl ファイルとして保存されます（ファイル名は同名）．
@@ -78,10 +86,11 @@ bash scripts/abci/train/run_sft.sh llmjp4_8b ${NUM_NODES} ${INPUT_NEMO_PATH}
 ## Direct Preference Optimization
 
 ```bash
-bash scripts/abci/train/run_dpo.sh llmjp4_8b ${NUM_NODES} ${INPUT_NEMO_PATH}
+bash scripts/abci/train/run_dpo.sh llmjp4_8b ${NUM_NODES} ${INPUT_NEMO_PATH} ${RANDOM_SEED}
 ```
 `{NUM_NODES}` は学習に使用するノード数を指定してください．
-`${INPUT_NEMO_PATH}` は Nemo チェックポイントのパスを指定してください．
+`${INPUT_NEMO_PATH}` は DPO を始める Nemo チェックポイントのパスを指定してください．`/groups/.../xxx/{sft_or_dpo}-yyyyyyyyyy/checkpoints` のように，`checkpoints` ディレクトリを指すパスを指定してください．
+`${RANDOM_SEED}` は `42` など，学習のランダムシードを指定してください．
 
 **注意:**
 この学習スクリプトでは，データをまずトークナイズし，キャッシュとして保存します．キャッシュは各 jsonl ファイルごとに作成され，pkl ファイルとして保存されます（ファイル名は同名）．

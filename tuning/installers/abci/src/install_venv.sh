@@ -9,8 +9,9 @@ pushd ${ENV_DIR}
 python/bin/python3 -m venv venv
 
 source venv/bin/activate
-pip install --upgrade pip wheel cython
+pip install --upgrade pip wheel
 pip install setuptools==69.5.1
+pip install --upgrade cython
 pip install packaging
 deactivate
 

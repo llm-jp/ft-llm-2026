@@ -19,6 +19,12 @@ exec > $LOGFILE 2> $ERRFILE
 
 set -eu -o pipefail
 
+# TMPDIR setup
+export TMPDIR=${HOME}/tmp
+mkdir -p ${TMPDIR}
+echo "Using TMPDIR=${TMPDIR}"
+
+
 echo "Converting HF checkpoint to NeMo format"
 
 # Setup environment

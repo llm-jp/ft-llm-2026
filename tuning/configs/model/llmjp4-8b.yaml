@@ -1,5 +1,5 @@
 max_seq_length: 4096
-restore_from_path: "/path/to/model" # FIXME: Change this `restore_from_path` to the path of the model you want to resume from.
+restore_from_path: "/path/to/model"
 
 tensor_model_parallel_size: 1 # intra-layer model parallelism
 pipeline_model_parallel_size: 1 # inter-layer model parallelism

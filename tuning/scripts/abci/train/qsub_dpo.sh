@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -P gch51701
-#PBS -q FIXME
-#PBS -N FIXME
+#PBS -q rt_HF
+#PBS -N train
 #PBS -l select=8:ncpus=192
 #PBS -l walltime=168:00:00
 #PBS -m n

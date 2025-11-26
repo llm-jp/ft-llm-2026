@@ -8,6 +8,6 @@ export CUDNN_PATH=/apps/cudnn/${TUNING_CUDNN_VERSION_WITH_PATCH}/cuda${TUNING_CU
 echo "CUDA_PATH: ${CUDA_PATH}"
 echo "CUDNN_PATH: ${CUDNN_PATH}"
 
-NVTE_FRAMEWORK=pytorch pip install git+https://github.com/NVIDIA/TransformerEngine.git@c81733f1032a56a817b594c8971a738108ded7d0 --no-cache-dir
+NVTE_FRAMEWORK=pytorch pip install --no-build-isolation git+https://github.com/NVIDIA/TransformerEngine.git@c81733f1032a56a817b594c8971a738108ded7d0 --no-cache-dir
 
 deactivate
