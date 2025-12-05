@@ -20,8 +20,8 @@ MEGATRON_HELPER_EXT=$(${ENV_DIR}/python/bin/python3-config --extension-suffix)
 
 # NOTE(odashi):
 # New version of Megatron-LM changed the extension name 'helpers' to 'helpers_cpp'
-#g++ ${MEGATRON_HELPER_CPPFLAGS[@]} helpers.cpp -o helpers_cpp${MEGATRON_HELPER_EXT}
-g++ ${MEGATRON_HELPER_CPPFLAGS[@]} helpers.cpp -o helpers${MEGATRON_HELPER_EXT}
+g++ ${MEGATRON_HELPER_CPPFLAGS[@]} helpers.cpp -o helpers_cpp${MEGATRON_HELPER_EXT}
+#g++ ${MEGATRON_HELPER_CPPFLAGS[@]} helpers.cpp -o helpers${MEGATRON_HELPER_EXT}
 
 popd  # megatron/core/datasets
 popd  # Megatron-LM
