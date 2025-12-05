@@ -20,13 +20,6 @@ EXPERIMENT_NAME=pretrain_${JOB_ID}
 
 # Load common environment variables
 source ${ENV_DIR}/scripts/environment.sh
-
-# Load modules
-source /etc/profile.d/modules.sh
-module load cuda/${PRETRAIN_CUDA_VERSION}/${PRETRAIN_CUDA_VERSION}.${PRETRAIN_CUDA_VERSION_PATCH}
-module load cudnn/${PRETRAIN_CUDNN_VERSION}/${PRETRAIN_CUDNN_VERSION_WITH_PATCH}
-module load hpcx/${PRETRAIN_HPCX_VERSION}
-module load nccl/${PRETRAIN_NCCL_VERSION}/${PRETRAIN_NCCL_VERSION_WITH_PATCH}
 # For logging
 module list
 
