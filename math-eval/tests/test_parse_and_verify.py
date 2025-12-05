@@ -1,6 +1,6 @@
 import pytest
 
-from ft_llm_2026_scripts.main import parse_and_verify
+from math_eval.main import parse_and_verify
 
 
 @pytest.mark.parametrize(
@@ -44,5 +44,5 @@ from ft_llm_2026_scripts.main import parse_and_verify
     ],
 )
 def test_verify(prediction: str, gold: str, expected: bool) -> None:
-    result = parse_and_verify(prediction, gold)
+    result = parse_and_verify(prediction, gold, evaluation_method="soft")
     assert result == expected

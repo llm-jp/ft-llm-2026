@@ -45,6 +45,11 @@ bash ckpt/run_hf_to_mcore.sh $ENV_DIR $HF_MODEL_PATH $MCORE_MODEL_PATH
 - `train_data.sh`: 学習データのパス及び利用するトークン数などを定義するスクリプト
 - `base_checkpoints`: 変換した mcore 形式のモデルを格納するディレクトリ
   - `base_checkpoints/iter_0000001`，`base_checkpoints/latest_checkpointed_iteration.txt` といった形で配置してあればよい
+    - 以下のようにシンボリックリンクを貼るのもよい
+    ```bash
+    cd pretrain/tasks/openwebmath
+    ln -sf $MCORE_MODEL_PATH base_checkpoints
+    ```
   - `base_checkpoints` がないと継続事前学習ではなく，いちからモデルを学習してしまうので注意
     - 学習実行時，モデル読み込みが成功すると学習ログに `successfully loaded checkpoint from ...` と表示されるので確認するとよい
 
