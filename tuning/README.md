@@ -20,12 +20,20 @@ cd ..
 2. `scripts/abci/common/setup.sh` 内の `ENV_DIR` を上記で構築した環境のディレクトリに置き換えてください．
    - `FIXME` と記載されている箇所です
 
-3. 共有の google drive からチューニング用データセットをダウンロードし，`datasets/` に配置してください．
+3. wandb を使用する場合は，APIキーを設定してください．
+   - https://wandb.ai/authorize からAPIキーを取得し，以下のコマンドで保存してください．
+   ```bash
+   echo "YOUR_WANDB_API_KEY" > ~/.wandb_api_key
+   chmod 600 ~/.wandb_api_key
+   ```
+   - APIキーが設定されていない場合は，自動的にオフラインモードで実行されます．
+
+4. 共有の google drive からチューニング用データセットをダウンロードし，`datasets/` に配置してください．
    - `tuning_data20251105.zip` をダウンロード・解凍し， `datasets/` に配置してください．
      - [llm-jp/extraction-wiki-ja](https://huggingface.co/datasets/llm-jp/extraction-wiki-ja) をサンプルデータとして入れています 
 
-4. `configs/base_template.yaml` をコピーして `configs/base.yaml` を作成し，`FIXME` と記載されている箇所を修正してください．
-   - 3 でダウンロードしたデータセットを使用する場合は `data_dir` と `data_version` は修正不要です．
+5. `configs/base_template.yaml` をコピーして `configs/base.yaml` を作成し，`FIXME` と記載されている箇所を修正してください．
+   - 4 でダウンロードしたデータセットを使用する場合は `data_dir` と `data_version` は修正不要です．
    - `project` は wandb のプロジェクト名に修正してください．
    - `entity` は wandb のアカウント名に修正してください．
    - `work_dir` は実験結果の保存先に修正してください．モデルのチェックポイントが保存されるため，十分なディスク容量がある場所（`/home` 以下は非推奨）を指定してください．

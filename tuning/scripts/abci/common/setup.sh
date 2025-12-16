@@ -1,6 +1,6 @@
 # Script for setup environment
 
-ENV_DIR="/path/to/your/environment" # FIXME: update this path
+ENV_DIR="/path/to/your/environment" # FIXME: update this path ex (ENV_DIR="/groups/gch51701/Team014/xxx/tuning/env")
 
 # Setup Python environment
 source ${ENV_DIR}/scripts/environment.sh
@@ -26,6 +26,12 @@ cat $PBS_NODEFILE
 
 # Set NVIDIA_PYTORCH_VERSION
 export NVIDIA_PYTORCH_VERSION=""
+
+# Wandb settings
+export WANDB_API_KEY=$(cat ${HOME}/.wandb_api_key 2>/dev/null || echo "")
+if [ -z "${WANDB_API_KEY}" ]; then
+  export WANDB_MODE=offline
+fi
 
 # Debug/logging flags
 export LOGLEVEL=INFO

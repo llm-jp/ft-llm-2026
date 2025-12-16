@@ -20,14 +20,18 @@ data:
   # split_dev: whether to split the dataset into training and validation datasets. If false, the dataset is used for training only.
   # upsampling_factor: upsampling factor for the dataset. 1 means no upsampling. Valid for both training and validation datasets.
 datasets:
-  llmjp_extraction_wiki_ja_v0.2:
+  gsm8k:
     max_train_samples: -1 # -1 means all
     split_dev: true
     upsampling_factor: 1
-  llmjp_extraction_wiki_ja_v0.3:
-    max_train_samples: -1 # -1 means all
-    split_dev: true
-    upsampling_factor: 1
+  # llmjp_extraction_wiki_ja_v0.2:
+  #   max_train_samples: -1 # -1 means all
+  #   split_dev: true
+  #   upsampling_factor: 1
+  # llmjp_extraction_wiki_ja_v0.3:
+  #   max_train_samples: -1 # -1 means all
+  #   split_dev: true
+  #   upsampling_factor: 1
 # number of dev samples are the minimum value of {max_dev_samples, max_dev_ratio * number of dev samples} in the dataset.
 max_dev_samples: 100
 max_dev_ratio: 0.1
