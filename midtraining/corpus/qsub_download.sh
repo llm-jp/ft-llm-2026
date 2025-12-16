@@ -24,6 +24,6 @@ source ${ENV_DIR}/venv/bin/activate
 
 echo "DATA_ROOT_DIR=${DATA_ROOT_DIR}"
 
-python corpus/download_openwebmath.py --raw-data-dir ${DATA_ROOT_DIR}/raw
+python download_openwebmath.py --raw-data-dir ${DATA_ROOT_DIR}/raw
 
 echo "Download done"
