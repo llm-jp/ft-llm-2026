@@ -66,8 +66,13 @@ source ${TASK_DIR}/train_data.sh
 source ${TASK_DIR}/params.sh
 
 # Add logging params
-WANDB_ENTITY="xxx"  # FIXME
-WANDB_PROJECT="tuningWS2026_midtraining"  # FIXME
+WANDB_ENTITY="xxx"
+WANDB_PROJECT="midtraining"
+
+# Load WandB API key from file
+if [ -f ~/.wandb_api_key ]; then
+    export WANDB_API_KEY=$(cat ~/.wandb_api_key)
+fi
 
 ALL_PARAMS+=(
     --log-interval 1

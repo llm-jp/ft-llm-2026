@@ -85,3 +85,67 @@ bash ckpt/run_mcore_to_hf.sh $ENV_DIR $TASK_DIR $ITER_NUM
 
 `$TASK_DIR` には上記で準備したタスクディレクトリのパスを，`$ITER_NUM` には変換したいチェックポイントのイテレーション数（`500` など）を指定してください．
 
+## ローカル環境での変更点
+
+GitHub リポジトリ（https://github.com/llm-jp/ft-llm-2026/tree/main/midtraining）からの変更点を以下に記載します．
+
+### 1. installer/src/install_flash_attention.sh
+
+pip install ではなく，ソースからビルドするように変更:
+
+```bash
+# 変更前
+python -m pip install --no-build-isolation --no-cache-dir "flash-attn==${PRETRAIN_FLASH_ATTENTION_VERSION}"
+
+# 変更後
+export MAX_JOBS=8
+git clone https://github.com/Dao-AILab/flash-attention -b v${PRETRAIN_FLASH_ATTENTION_VERSION}
+pushd flash-attention
+python -m pip install --no-build-isolation -e .
+popd
+```
+
+### 2. corpus/qsub_download.sh
+
+スクリプトのパスを修正:
+
+```bash
+# 変更前
+python corpus/download_openwebmath.py --raw-data-dir ${DATA_ROOT_DIR}/raw
+
+# 変更後
+python download_openwebmath.py --raw-data-dir ${DATA_ROOT_DIR}/raw
+```
+
+### 3. pretrain/train/qsub_train.sh
+
+WandB の設定を修正:
+
+```bash
+# WANDB_ENTITY を自分のアカウントに変更
+WANDB_ENTITY="xxx"
+
+# ~/.wandb_api_key からAPIキーを読み込むように追加
+if [ -f ~/.wandb_api_key ]; then
+    export WANDB_API_KEY=$(cat ~/.wandb_api_key)
+fi
+```
+
+WandB の API キーは以下のコマンドで設定:
+
+```bash
+echo "YOUR_WANDB_API_KEY" > ~/.wandb_api_key
+chmod 600 ~/.wandb_api_key
+```
+
+### 4. helpers モジュールの再ビルド
+
+環境構築後，helpers モジュールを Python 3.10 用に再ビルドする必要がある場合があります:
+
+```bash
+source ${ENV_DIR}/venv/bin/activate
+cd ${ENV_DIR}/src/Megatron-LM/megatron/core/datasets
+g++ -O3 -Wall -shared -std=c++11 -fPIC -fdiagnostics-color \
+    $(python -m pybind11 --includes) \
+    helpers.cpp -o helpers_cpp.cpython-310-x86_64-linux-gnu.so
+```
