@@ -66,7 +66,7 @@ source ${TASK_DIR}/train_data.sh
 source ${TASK_DIR}/params.sh
 
 # Add logging params
-WANDB_ENTITY="xxx"
+WANDB_ENTITY="rook86"
 WANDB_PROJECT="midtraining"
 
 # Load WandB API key from file
