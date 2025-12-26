@@ -28,16 +28,17 @@ def _custom_warning_format(message, category, filename, lineno, _file=None, _lin
     err_console.log(f"[yellow]{filename}:{lineno}: {category.__name__}: {message}[/yellow]")
 warnings.showwarning = _custom_warning_format
 
+EvaluationMethod = Literal["soft", "strict", "complex"]
+
 @dataclasses.dataclass
 class PredictionExample:
     id: str
-    problem: str
-    solution: str
-    category: str
-    unit: str
     output: str
-
-EvaluationMethod = Literal["soft", "strict", "complex"]
+    problem: Optional[str] = None
+    solution: Optional[str] = None
+    category: Optional[str] = None
+    unit: Optional[str] = None
+    evaluation_method: Optional[EvaluationMethod] = None
 
 @dataclasses.dataclass
 class GoldExample:
@@ -165,7 +166,7 @@ def math_eval(
             continue
         prediction = id_prediction_map[id_]
         gold = id_gold_map[id_]
-        id_result_map[id_] = parse_and_verify(prediction.output, gold.solution)
+        id_result_map[id_] = parse_and_verify(prediction.output, gold.solution, gold.evaluation_method)
     
     overall_accuracy = accuracy(list(id_result_map.values()))
     category_result_map: dict[str, list[bool]] = {}
