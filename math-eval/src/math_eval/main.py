@@ -72,7 +72,7 @@ def load_examples(file_path: str, example_cls: type) -> dict[str, Any]:
 
 def _verify_soft(prediction: str, gold: str) -> bool:
     """Soft evaluation: allows calculation."""
-    return verify(parse(prediction), parse(gold))
+    return verify(parse(gold), parse(prediction))
 
 
 def _verify_strict(prediction: str, gold: str) -> bool:
