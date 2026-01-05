@@ -50,12 +50,10 @@ uv run python download_model.py --model_name llm-jp/llm-jp-3.1-1.8b-instruct4
 singularity run --nv --writable-tmpfs \
     --env CUDA_VISIBLE_DEVICES=0 --net --network none \
     dist/submission.sif \
-    --model_path models/llm-jp/llm-jp-3.1-1.8b-instruct4 \
     --input_path sample_problems.jsonl \
     --output_path "$(pwd)/output.jsonl"
 ```
 
-`--model_path` にはイメージに同梱したモデルディレクトリを指定します。
 推論結果は `output.jsonl` に書き出されます。
 
 ## 応用
