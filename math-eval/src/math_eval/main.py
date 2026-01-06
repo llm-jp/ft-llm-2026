@@ -3,6 +3,7 @@
 Usage:
     uv run math-eval <prediction-file> <gold-file> [-o <output-file>]
 """
+
 import json
 import dataclasses
 import warnings
@@ -24,24 +25,33 @@ app = typer.Typer()
 # Error and Warnings
 console = Console()
 err_console = Console(stderr=True)
-def _custom_warning_format(message, category, filename, lineno, _file=None, _line=None):
-    err_console.log(f"[yellow]{filename}:{lineno}: {category.__name__}: {message}[/yellow]")
-warnings.showwarning = _custom_warning_format
 
-@dataclasses.dataclass
-class PredictionExample:
-    id: str
-    problem: str
-    solution: str
-    category: str
-    unit: str
-    output: str
+
+def _custom_warning_format(message, category, filename, lineno, _file=None, _line=None):
+    err_console.log(
+        f"[yellow]{filename}:{lineno}: {category.__name__}: {message}[/yellow]"
+    )
+
+
+warnings.showwarning = _custom_warning_format
 
 EvaluationMethod = Literal["soft", "strict", "complex"]
 
+
+@dataclasses.dataclass
+class PredictionExample:
+    id: int
+    output: str
+    problem: Optional[str] = None
+    solution: Optional[str] = None
+    category: Optional[str] = None
+    unit: Optional[str] = None
+    evaluation_method: Optional[EvaluationMethod] = None
+
+
 @dataclasses.dataclass
 class GoldExample:
-    id: str
+    id: int
     problem: str
     solution: str
     category: str
@@ -62,17 +72,21 @@ def load_examples(file_path: str, example_cls: type) -> dict[str, Any]:
             try:
                 example = example_cls(**item)
             except TypeError as e:
-                err_console.log(f"Error creating {example_cls.__name__} from line in '{file_path}': {e}")
+                err_console.log(
+                    f"Error creating {example_cls.__name__} from line in '{file_path}': {e}"
+                )
                 continue
             if example.id in id_example_map:
-                err_console.log(f"Duplicate example ID '{example.id}' found in '{file_path}'; overwriting previous entry.")
+                err_console.log(
+                    f"Duplicate example ID '{example.id}' found in '{file_path}'; overwriting previous entry."
+                )
             id_example_map[example.id] = example
     return id_example_map
 
 
 def _verify_soft(prediction: str, gold: str) -> bool:
     """Soft evaluation: allows calculation."""
-    return verify(parse(prediction), parse(gold))
+    return verify(parse(gold), parse(prediction))
 
 
 def _verify_strict(prediction: str, gold: str) -> bool:
@@ -83,8 +97,8 @@ def _verify_strict(prediction: str, gold: str) -> bool:
         return srepr(p) == srepr(q)
     except Exception:
         try:
-            p_latex = prediction.strip().strip('$')
-            q_latex = gold.strip().strip('$')
+            p_latex = prediction.strip().strip("$")
+            q_latex = gold.strip().strip("$")
             p_sympy = latex2sympy(p_latex)
             q_sympy = latex2sympy(q_latex)
             return srepr(p_sympy) == srepr(q_sympy)
@@ -93,15 +107,14 @@ def _verify_strict(prediction: str, gold: str) -> bool:
             return False
 
 
-
 def _verify_complex(prediction: str, gold: str) -> bool:
     """Complex evaluation: to be implemented."""
 
     def __convert_i_to_imag(expr_str: str) -> str:
         parsed_expr = parse(expr_str)[0]
-        has_i = any(str(sym) == 'i' for sym in parsed_expr.free_symbols)
+        has_i = any(str(sym) == "i" for sym in parsed_expr.free_symbols)
         if has_i:
-            i_symbol = [sym for sym in parsed_expr.free_symbols if str(sym) == 'i'][0]
+            i_symbol = [sym for sym in parsed_expr.free_symbols if str(sym) == "i"][0]
             sympy_expr = parsed_expr.subs(i_symbol, I).expand().simplify()
             latex_expr = latex(sympy_expr)
         else:
@@ -111,19 +124,21 @@ def _verify_complex(prediction: str, gold: str) -> bool:
     prediction = __convert_i_to_imag(prediction)
     gold = __convert_i_to_imag(gold)
     return _verify_soft(prediction, gold)
-        
+
 
 def parse_and_verify(
-    prediction: str,
-    gold: str,
-    evaluation_method: Optional[EvaluationMethod] = None
+    prediction: str, gold: str, evaluation_method: Optional[EvaluationMethod] = None
 ) -> bool:
     """Parse and verify the prediction against the gold answer.
 
     Note: Returns False if any error occurs during parsing or verification.
     """
     if evaluation_method is None:
-        warnings.warn("evaluation_method is None, defaulting to 'soft'\n⚠️  評価スクリプトにフラグによる条件分岐が追加されました。フラグを含む新しいテストデータを使用してください。", UserWarning, stacklevel=2)
+        warnings.warn(
+            "evaluation_method is None, defaulting to 'soft'\n⚠️  評価スクリプトにフラグによる条件分岐が追加されました。フラグを含む新しいテストデータを使用してください。",
+            UserWarning,
+            stacklevel=2,
+        )
 
     try:
         if evaluation_method == "strict":
@@ -139,6 +154,7 @@ def parse_and_verify(
     except Exception as e:
         err_console.log(f"Error occurred while verifying: {e}")
         return False
+
 
 def accuracy(results: list[bool]) -> float:
     """Calculate accuracy from a list of boolean results."""
@@ -160,19 +176,25 @@ def math_eval(
     id_result_map: dict[str, bool] = {}
     for id_ in id_gold_map:
         if id_ not in id_prediction_map:
-            err_console.log(f"Missing prediction for example ID '{id_}'; counting as incorrect.")
+            err_console.log(
+                f"Missing prediction for example ID '{id_}'; counting as incorrect."
+            )
             id_result_map[id_] = False
             continue
         prediction = id_prediction_map[id_]
         gold = id_gold_map[id_]
-        id_result_map[id_] = parse_and_verify(prediction.output, gold.solution)
-    
+        id_result_map[id_] = parse_and_verify(
+            prediction.output, gold.solution, gold.evaluation_method
+        )
+
     overall_accuracy = accuracy(list(id_result_map.values()))
     category_result_map: dict[str, list[bool]] = {}
     for id_, result in id_result_map.items():
         category = id_gold_map[id_].category
         category_result_map.setdefault(category, []).append(result)
-    category_accuracies = {category: accuracy(results) for category, results in category_result_map.items()}
+    category_accuracies = {
+        category: accuracy(results) for category, results in category_result_map.items()
+    }
 
     table = Table(title="Evaluation Results")
     table.add_column("Category", justify="left")
