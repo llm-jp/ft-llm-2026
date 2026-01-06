@@ -1,6 +1,6 @@
-{"id": "1", "problem": "1+1は?", "solution": "2", "category": "小学1年生", "unit": "足し算"}
-{"id": "2", "problem": "1+4は?", "solution": "5", "category": "小学1年生", "unit": "足し算"}
-{"id": "3", "problem": "5-2は?", "solution": "3", "category": "小学1年生", "unit": "引き算"}
-{"id": "4", "problem": "8-5は?", "solution": "3", "category": "小学1年生", "unit": "引き算"}
-{"id": "5", "problem": "3x3は?", "solution": "9", "category": "小学2年生", "unit": "掛け算"}
-{"id": "6", "problem": "2x4は?", "solution": "8", "category": "小学2年生", "unit": "掛け算"}
+{"id": 1, "problem": "1+1は?", "solution": "2", "category": "小学1年生", "unit": "足し算", "evaluation_method": "soft"}
+{"id": 2, "problem": "1+4は?", "solution": "5", "category": "小学1年生", "unit": "足し算", "evaluation_method": "soft"}
+{"id": 3, "problem": "5-2は?", "solution": "3", "category": "小学1年生", "unit": "引き算", "evaluation_method": "soft"}
+{"id": 4, "problem": "8-5は?", "solution": "3", "category": "小学1年生", "unit": "引き算", "evaluation_method": "soft"}
+{"id": 5, "problem": "3x3は?", "solution": "9", "category": "小学2年生", "unit": "掛け算", "evaluation_method": "soft"}
+{"id": 6, "problem": "2x4は?", "solution": "8", "category": "小学2年生", "unit": "掛け算", "evaluation_method": "soft"}
