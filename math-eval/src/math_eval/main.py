@@ -32,7 +32,7 @@ EvaluationMethod = Literal["soft", "strict", "complex"]
 
 @dataclasses.dataclass
 class PredictionExample:
-    id: str
+    id: int
     output: str
     problem: Optional[str] = None
     solution: Optional[str] = None
@@ -40,9 +40,10 @@ class PredictionExample:
     unit: Optional[str] = None
     evaluation_method: Optional[EvaluationMethod] = None
 
+
 @dataclasses.dataclass
 class GoldExample:
-    id: str
+    id: int
     problem: str
     solution: str
     category: str
