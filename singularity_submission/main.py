@@ -17,10 +17,22 @@ PROMPT_TEMPLATE = """\
 """
 
 
+def get_default_model_path():
+    models_dir = Path("/app/models")
+    if not models_dir.exists():
+        return None
+
+    for path in models_dir.rglob("config.json"):
+        return path.parent
+
+    return None
 def main():
     parser = argparse.ArgumentParser(description="Singularity Submission Example")
     parser.add_argument(
-        "--model_path", type=Path, required=True, help="Path to the model directory"
+        "--model_path",
+        type=Path,
+        default=get_default_model_path(),
+        help="Path to the model directory (default: auto-detect from /app/models)",
     )
     parser.add_argument(
         "--input_path", type=Path, required=True, help="Path to the input file"
@@ -31,8 +43,18 @@ def main():
 
     args = parser.parse_args()
 
-    llm = LLM(model=str(args.model_path.resolve()))
+    if args.model_path is None:
+        parser.error(
+            "Model path not specified and could not auto-detect model in /app/models"
+        )
 
+    model_path = args.model_path.resolve()
+    if not model_path.exists():
+        parser.error(f"Model path does not exist: {model_path}")
+    if not model_path.is_dir():
+        parser.error(f"Model path is not a directory: {model_path}")
+
+    llm = LLM(model=str(model_path))
     with open(args.input_path) as f:
         problems = list(map(json.loads, f))
 
