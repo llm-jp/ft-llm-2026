@@ -6,7 +6,9 @@ Usage:
 
 import json
 import dataclasses
+import re
 import warnings
+from itertools import product
 from typing import Any, Literal
 from typing import Optional
 
@@ -17,8 +19,7 @@ from rich.table import Table
 
 from math_verify import parse, verify
 from latex2sympy2_extended import latex2sympy
-from sympy import I, latex
-from sympy import srepr
+from sympy import FiniteSet, I, latex, srepr
 
 app = typer.Typer()
 
@@ -84,16 +85,72 @@ def load_examples(file_path: str, example_cls: type) -> dict[str, Any]:
     return id_example_map
 
 
+def _expand_pm_mp(expr: str) -> list[str]:
+    r"""Expand \pm and \mp in expression to generate all combinations.
+
+    \pm expands to + and -
+    \mp expands to - and +
+
+    Returns a list of all expanded expressions.
+    """
+    pattern = re.compile(r"\\(pm|mp)(?![a-zA-Z])")
+
+    matches = list(pattern.finditer(expr))
+    if not matches:
+        return [expr]
+
+    num_matches = len(matches)
+    results = []
+
+    for signs in product(["+", "-"], repeat=num_matches):
+        new_expr = expr
+        for match, sign in zip(reversed(matches), reversed(signs)):
+            new_expr = new_expr[: match.start()] + sign + new_expr[match.end() :]
+        results.append(new_expr)
+
+    return results
+
+
+def _extended_parse(expr: str) -> list:
+    r"""Extended parse with additional preprocessing.
+
+    Features:
+    - \pm/\mp expansion: expands to both + and - variants, returns as FiniteSet
+    """
+    expanded_exprs = _expand_pm_mp(expr)
+
+    if len(expanded_exprs) == 1:
+        return parse(expr)
+
+    all_values = set()
+    for expanded_expr in expanded_exprs:
+        try:
+            parsed = parse(expanded_expr)
+            if parsed:
+                val = parsed[0]
+                if hasattr(val, "__iter__") and not isinstance(val, str):
+                    for v in val:
+                        all_values.add(v)
+                else:
+                    all_values.add(val)
+        except Exception:
+            pass
+
+    if all_values:
+        return [FiniteSet(*all_values)]
+    return parse(expr)
+
+
 def _verify_soft(prediction: str, gold: str) -> bool:
     """Soft evaluation: allows calculation."""
-    return verify(parse(gold), parse(prediction))
+    return verify(_extended_parse(gold), _extended_parse(prediction))
 
 
 def _verify_strict(prediction: str, gold: str) -> bool:
     """Strict evaluation: no calculation allowed."""
     try:
-        p = parse(prediction)[0]
-        q = parse(gold)[0]
+        p = _extended_parse(prediction)[0]
+        q = _extended_parse(gold)[0]
         return srepr(p) == srepr(q)
     except Exception:
         try:
@@ -111,7 +168,7 @@ def _verify_complex(prediction: str, gold: str) -> bool:
     """Complex evaluation: to be implemented."""
 
     def __convert_i_to_imag(expr_str: str) -> str:
-        parsed_expr = parse(expr_str)[0]
+        parsed_expr = _extended_parse(expr_str)[0]
         has_i = any(str(sym) == "i" for sym in parsed_expr.free_symbols)
         if has_i:
             i_symbol = [sym for sym in parsed_expr.free_symbols if str(sym) == "i"][0]
