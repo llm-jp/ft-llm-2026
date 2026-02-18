@@ -12,6 +12,7 @@ dependencies = [
     "math-verify[antlr4-13-2]>=0.8.0",
     "rich>=14.2.0",
     "typer>=0.20.0",
+    "typing-extensions>=4.15.0",
 ]
 
 [project.scripts]

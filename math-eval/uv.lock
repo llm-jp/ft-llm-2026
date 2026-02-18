@@ -79,6 +79,7 @@ dependencies = [
     { name = "math-verify", extra = ["antlr4-13-2"] },
     { name = "rich" },
     { name = "typer" },
+    { name = "typing-extensions" },
 ]
 
 [package.dev-dependencies]
@@ -91,6 +92,7 @@ requires-dist = [
     { name = "math-verify", extras = ["antlr4-13-2"], specifier = ">=0.8.0" },
     { name = "rich", specifier = ">=14.2.0" },
     { name = "typer", specifier = ">=0.20.0" },
+    { name = "typing-extensions", specifier = ">=4.15.0" },
 ]
 
 [package.metadata.requires-dev]
