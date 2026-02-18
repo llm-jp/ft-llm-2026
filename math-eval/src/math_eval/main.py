@@ -47,6 +47,7 @@ class PredictionExample:
     solution: Optional[str] = None
     category: Optional[str] = None
     unit: Optional[str] = None
+    difficulty: Optional[str] = None
     evaluation_method: Optional[EvaluationMethod] = None
 
 
@@ -57,6 +58,7 @@ class GoldExample:
     solution: str
     category: str
     unit: str
+    difficulty: Optional[str] = None
     evaluation_method: Optional[EvaluationMethod] = None
 
 
