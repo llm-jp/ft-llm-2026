@@ -110,6 +110,26 @@ def _ensure_math_delimiters(expr: str) -> str:
     return f"${expr}$"
 
 
+# 不等号の正規化: 日本式の二重線 (\geqq 等) を標準形 (\geq 等) に統一
+_INEQUALITY_NORMALIZE_MAP = {
+    r"\geqq": r"\geq",
+    r"\leqq": r"\leq",
+    r"\neqq": r"\neq",
+    r"\gneqq": r"\gneq",
+    r"\lneqq": r"\lneq",
+}
+_INEQUALITY_RE = re.compile(
+    r"|".join(re.escape(k) for k in _INEQUALITY_NORMALIZE_MAP)
+)
+
+
+def _normalize_inequalities(expr: str) -> str:
+    r"""日本式の二重線不等号 (\geqq, \leqq 等) を標準形に正規化する。"""
+    return _INEQUALITY_RE.sub(
+        lambda m: _INEQUALITY_NORMALIZE_MAP[m.group()], expr
+    )
+
+
 def _expand_pm_mp(expr: str) -> list[str]:
     r"""Expand \pm and \mp in expression to generate all combinations.
 
@@ -140,8 +160,10 @@ def _extended_parse(expr: str) -> list:
     r"""Extended parse with additional preprocessing.
 
     Features:
+    - 不等号の正規化: \geqq → \geq, \leqq → \leq 等
     - \pm/\mp expansion: expands to both + and - variants, returns as FiniteSet
     """
+    expr = _normalize_inequalities(expr)
     expanded_exprs = _expand_pm_mp(expr)
 
     if len(expanded_exprs) == 1:
