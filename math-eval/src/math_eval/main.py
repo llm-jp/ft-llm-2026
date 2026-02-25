@@ -55,7 +55,7 @@ class PredictionExample:
 class GoldExample:
     id: int
     problem: str
-    solution: str
+    solution: str | list[str]
     category: str
     unit: str
     difficulty: Optional[str] = None
@@ -185,11 +185,28 @@ def _verify_complex(prediction: str, gold: str) -> bool:
     return _verify_soft(prediction, gold)
 
 
+def _verify_single(
+    prediction: str, gold: str, evaluation_method: Optional[EvaluationMethod]
+) -> bool:
+    """単一の gold に対して prediction を検証する。"""
+    if evaluation_method == "strict":
+        return _verify_strict(prediction, gold)
+    elif evaluation_method == "complex":
+        return _verify_complex(prediction, gold)
+    elif evaluation_method == "soft" or evaluation_method is None:
+        return _verify_soft(prediction, gold)
+    else:
+        raise ValueError(f"Unknown evaluation method: {evaluation_method}")
+
+
 def parse_and_verify(
-    prediction: str, gold: str, evaluation_method: Optional[EvaluationMethod] = None
+    prediction: str,
+    gold: str | list[str],
+    evaluation_method: Optional[EvaluationMethod] = None,
 ) -> bool:
     """Parse and verify the prediction against the gold answer.
 
+    gold が文字列のリストの場合、いずれか1つが一致すれば正解と判定する。
     Note: Returns False if any error occurs during parsing or verification.
     """
     if evaluation_method is None:
@@ -200,14 +217,9 @@ def parse_and_verify(
         )
 
     try:
-        if evaluation_method == "strict":
-            return _verify_strict(prediction, gold)
-        elif evaluation_method == "complex":
-            return _verify_complex(prediction, gold)
-        elif evaluation_method == "soft" or evaluation_method is None:
-            return _verify_soft(prediction, gold)
-        else:
-            raise ValueError(f"Unknown evaluation method: {evaluation_method}")
+        if isinstance(gold, list):
+            return any(_verify_single(prediction, g, evaluation_method) for g in gold)
+        return _verify_single(prediction, gold, evaluation_method)
     except (NotImplementedError, ValueError):
         raise  # Re-raise for caller to handle
     except Exception as e:
