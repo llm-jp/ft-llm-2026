@@ -87,6 +87,29 @@ def load_examples(file_path: str, example_cls: type) -> dict[str, Any]:
     return id_example_map
 
 
+_MATH_DELIMITER_RE = re.compile(
+    r"(?<!\\)\$\$"      # $$
+    r"|(?<!\\)\\\["     # \[
+    r"|(?<!\\)\\\]"     # \]
+    r"|(?<!\\|\d)\$"    # $（\$ や 数字$ を除く）
+    r"|(?<!\\)\\\("     # \(
+    r"|(?<!\\)\\\)"     # \)
+    r"|\\boxed\{"       # \boxed{
+)
+
+
+def _ensure_math_delimiters(expr: str) -> str:
+    r"""数式デリミタがない場合、$...$ で囲む。
+
+    math_verify の parse は $...$, \(...\), \[...\], $$...$$ などのデリミタを
+    正規表現で検出する。デリミタがないとプレーン数値抽出にフォールバックし、
+    LaTeX 式（\sqrt{2} など）が正しくパースされない。
+    """
+    if _MATH_DELIMITER_RE.search(expr):
+        return expr
+    return f"${expr}$"
+
+
 def _expand_pm_mp(expr: str) -> list[str]:
     r"""Expand \pm and \mp in expression to generate all combinations.
 
@@ -199,6 +222,25 @@ def _verify_single(
         raise ValueError(f"Unknown evaluation method: {evaluation_method}")
 
 
+def _verify_with_delimiter_fallback(
+    prediction: str, gold: str, evaluation_method: Optional[EvaluationMethod]
+) -> bool:
+    """通常の評価を行い、False の場合は prediction を $...$ で囲んで再評価する。
+
+    prediction にデリミタがない場合、parse が数値抽出のみとなり
+    LaTeX 式が正しくパースされないことがある。フォールバックとして
+    $...$ で囲むことで LaTeX パースを試みる。
+    """
+    if _verify_single(prediction, gold, evaluation_method):
+        return True
+
+    wrapped_prediction = _ensure_math_delimiters(prediction)
+    if wrapped_prediction == prediction:
+        return False  # 既にデリミタありなので再評価不要
+
+    return _verify_single(wrapped_prediction, gold, evaluation_method)
+
+
 def parse_and_verify(
     prediction: str,
     gold: str | list[str],
@@ -218,8 +260,8 @@ def parse_and_verify(
 
     try:
         if isinstance(gold, list):
-            return any(_verify_single(prediction, g, evaluation_method) for g in gold)
-        return _verify_single(prediction, gold, evaluation_method)
+            return any(_verify_with_delimiter_fallback(prediction, g, evaluation_method) for g in gold)
+        return _verify_with_delimiter_fallback(prediction, gold, evaluation_method)
     except (NotImplementedError, ValueError):
         raise  # Re-raise for caller to handle
     except Exception as e:
