@@ -17,8 +17,9 @@ from typing_extensions import Annotated
 from rich.console import Console
 from rich.table import Table
 
-from math_verify import parse, verify
+from math_verify import parse, verify, LatexExtractionConfig, ExprExtractionConfig
 from latex2sympy2_extended import latex2sympy
+from latex2sympy2_extended.math_normalization import NormalizationConfig
 from sympy import FiniteSet, I, latex, srepr
 
 app = typer.Typer()
@@ -85,6 +86,22 @@ def load_examples(file_path: str, example_cls: type) -> dict[str, Any]:
                 )
             id_example_map[example.id] = example
     return id_example_map
+
+
+# 単位除去を無効にした extraction config
+# math_verify デフォルトの units=True は ab, bc, pm 等を単位として除去してしまい、
+# 数学の変数と衝突するため無効化する
+_LATEX_CONFIG_NO_UNITS = LatexExtractionConfig(
+    normalization_config=NormalizationConfig(
+        basic_latex=True,
+        units=False,
+        malformed_operators=True,
+        nits=True,
+        boxed="all",
+        equations=False,
+    )
+)
+_EXTRACTION_CONFIG = [_LATEX_CONFIG_NO_UNITS, ExprExtractionConfig()]
 
 
 _MATH_DELIMITER_RE = re.compile(
@@ -167,12 +184,12 @@ def _extended_parse(expr: str) -> list:
     expanded_exprs = _expand_pm_mp(expr)
 
     if len(expanded_exprs) == 1:
-        return parse(expr)
+        return parse(expr, extraction_config=_EXTRACTION_CONFIG)
 
     all_values = set()
     for expanded_expr in expanded_exprs:
         try:
-            parsed = parse(expanded_expr)
+            parsed = parse(expanded_expr, extraction_config=_EXTRACTION_CONFIG)
             if parsed:
                 val = parsed[0]
                 if hasattr(val, "__iter__") and not isinstance(val, str):
@@ -185,7 +202,7 @@ def _extended_parse(expr: str) -> list:
 
     if all_values:
         return [FiniteSet(*all_values)]
-    return parse(expr)
+    return parse(expr, extraction_config=_EXTRACTION_CONFIG)
 
 
 def _verify_soft(prediction: str, gold: str) -> bool:
