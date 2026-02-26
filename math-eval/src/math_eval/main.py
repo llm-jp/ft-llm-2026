@@ -205,9 +205,90 @@ def _extended_parse(expr: str) -> list:
     return parse(expr, extraction_config=_EXTRACTION_CONFIG)
 
 
+def _paren_variants(expr: str) -> list[str]:
+    r"""括弧の種類を変えたバリエーションを生成する。
+
+    (), [], \{\} を相互に置き換えた式を返す（元の式と同じものは除く）。
+    \left/\right がある場合はそれを保持する。
+    数式デリミタ \[, \], \(, \) は置換対象外。
+    """
+    s = expr
+    has_brackets = False
+
+    # 数式デリミタ \[, \], \(, \) を保護（括弧置換の対象外にする）
+    s = s.replace(r"\[", "\x01DO\x01")
+    s = s.replace(r"\]", "\x01DC\x01")
+    s = s.replace(r"\(", "\x01IO\x01")
+    s = s.replace(r"\)", "\x01IC\x01")
+
+    # \left/\right 付き括弧をプレースホルダに置換（長いパターンから先に）
+    for pat in [r"\left\{", r"\left(", r"\left["]:
+        if pat in s:
+            s = s.replace(pat, "\x00LO\x00")
+            has_brackets = True
+    for pat in [r"\right\}", r"\right)", r"\right]"]:
+        if pat in s:
+            s = s.replace(pat, "\x00RC\x00")
+            has_brackets = True
+
+    # plain 括弧をプレースホルダに置換（\{ は ( より先に）
+    for pat in [r"\{", "(", "["]:
+        if pat in s:
+            s = s.replace(pat, "\x00PO\x00")
+            has_brackets = True
+    for pat in [r"\}", ")", "]"]:
+        if pat in s:
+            s = s.replace(pat, "\x00PC\x00")
+            has_brackets = True
+
+    if not has_brackets:
+        return []
+
+    _BRACKET_TYPES = [
+        (r"\left(", r"\right)", "(", ")"),
+        (r"\left[", r"\right]", "[", "]"),
+        (r"\left\{", r"\right\}", r"\{", r"\}"),
+    ]
+
+    variants = []
+    for left_b, right_b, plain_l, plain_r in _BRACKET_TYPES:
+        v = s
+        v = v.replace("\x00LO\x00", left_b).replace("\x00RC\x00", right_b)
+        v = v.replace("\x00PO\x00", plain_l).replace("\x00PC\x00", plain_r)
+        # 保護した数式デリミタを復元
+        v = v.replace("\x01DO\x01", r"\[").replace("\x01DC\x01", r"\]")
+        v = v.replace("\x01IO\x01", r"\(").replace("\x01IC\x01", r"\)")
+        if v != expr:
+            variants.append(v)
+
+    return variants
+
+
 def _verify_soft(prediction: str, gold: str) -> bool:
-    """Soft evaluation: allows calculation."""
-    return verify(_extended_parse(gold), _extended_parse(prediction))
+    """Soft evaluation: allows calculation, with bracket variant fallback."""
+    parsed_gold = _extended_parse(gold)
+    parsed_pred = _extended_parse(prediction)
+
+    if verify(parsed_gold, parsed_pred):
+        return True
+
+    # 括弧フォールバック: prediction の括弧の種類を変えて再検証
+    for variant in _paren_variants(prediction):
+        try:
+            if verify(parsed_gold, _extended_parse(variant)):
+                return True
+        except Exception:
+            continue
+
+    # gold 側の括弧も変えて再検証
+    for variant in _paren_variants(gold):
+        try:
+            if verify(_extended_parse(variant), parsed_pred):
+                return True
+        except Exception:
+            continue
+
+    return False
 
 
 def _verify_strict(prediction: str, gold: str) -> bool:
