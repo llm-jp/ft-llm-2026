@@ -178,8 +178,27 @@ _LOGICAL_CONNECTIVE_RE = re.compile(
 
 
 def _normalize_logical_connectives(expr: str) -> str:
-    r"""論理記号 (\vee, \lor, \text{または}, or 等) をカンマに正規化する。"""
-    return _LOGICAL_CONNECTIVE_RE.sub(",", expr)
+    r"""論理記号 (\vee, \lor, \text{または}, or 等) をカンマに正規化する。
+
+    「a, b, \text{and} c」パターンで二重カンマが生じる場合もクリーンアップする。
+    """
+    expr = _LOGICAL_CONNECTIVE_RE.sub(",", expr)
+    # 二重カンマを単一カンマに (「a, and b」→「a,,b」のケース)
+    expr = re.sub(r",\s*,", ",", expr)
+    return expr
+
+
+# LaTeX スペーシングコマンドの除去
+# \ , \,, \;, \:, \!, \quad, \qquad は視覚的スペースのみで数式に影響しない
+_LATEX_SPACING_RE = re.compile(
+    r"\\(?:quad|qquad|[,;:!])"
+    r"|(?<!\\)\\ "  # \ (バックスラッシュ+スペース)。\sin 等は \+文字 なので非該当
+)
+
+
+def _strip_latex_spacing(expr: str) -> str:
+    r"""LaTeX スペーシングコマンド (\,, \;, \quad 等) を通常スペースに変換する。"""
+    return _LATEX_SPACING_RE.sub(" ", expr)
 
 
 def _expand_pm_mp(expr: str) -> list[str]:
@@ -242,11 +261,13 @@ def _extended_parse(expr: str) -> list:
     r"""Extended parse with additional preprocessing.
 
     Features:
-    - 複数 $...$ ブロックのマージ
+    - LaTeX スペーシング除去: \,, \;, \quad 等 → スペース
+    - 複数数式ブロックのマージ: $a$. $b$ → $a, b$
     - 不等号の正規化: \geqq → \geq, \leqq → \leq 等
     - 論理記号の正規化: \vee, \lor, \wedge, \land → , (カンマ)
     - \pm/\mp expansion: expands to both + and - variants, returns as FiniteSet
     """
+    expr = _strip_latex_spacing(expr)
     expr = _merge_math_blocks(expr)
     expr = _normalize_inequalities(expr)
     expr = _normalize_logical_connectives(expr)
@@ -713,7 +734,7 @@ def parse_and_verify(
             stacklevel=2,
         )
 
-    # prediction に含まれる XML タグ (<answer> 等) を除去し、数値間スペースを正規化
+    # prediction の前処理: XML タグ除去、数値間スペース正規化
     prediction = _strip_xml_tags(prediction)
     prediction = _normalize_digit_spaces(prediction)
 
