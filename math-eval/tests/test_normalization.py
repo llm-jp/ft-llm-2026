@@ -14,6 +14,7 @@ import pytest
 from math_eval.main import (
     _strip_xml_tags,
     _normalize_digit_spaces,
+    _strip_bracket_sizing,
     _strip_latex_spacing,
     _normalize_inequalities,
     _normalize_logical_connectives,
@@ -73,6 +74,34 @@ class TestNormalizeDigitSpaces:
 
     def test_mixed(self):
         assert _normalize_digit_spaces("x = 1 2 3") == "x = 123"
+
+
+# --- 括弧サイズコマンド除去 ---
+
+
+class TestStripBracketSizing:
+    r"""_strip_bracket_sizing の単体テスト。"""
+
+    def test_bigl_bigr(self):
+        assert _strip_bracket_sizing(r"\bigl( x \bigr)") == "( x )"
+
+    def test_Bigl_Bigr(self):
+        assert _strip_bracket_sizing(r"\Bigl[ a \Bigr]") == "[ a ]"
+
+    def test_biggl_biggr(self):
+        assert _strip_bracket_sizing(r"\biggl( x \biggr)") == "( x )"
+
+    def test_Biggl_Biggr(self):
+        assert _strip_bracket_sizing(r"\Biggl( x \Biggr)") == "( x )"
+
+    def test_left_right(self):
+        assert _strip_bracket_sizing(r"\left( x \right)") == "( x )"
+
+    def test_middle(self):
+        assert _strip_bracket_sizing(r"\left( x \middle| y \right)") == "( x | y )"
+
+    def test_no_sizing(self):
+        assert _strip_bracket_sizing(r"\sin x") == r"\sin x"
 
 
 # --- LaTeX スペーシングコマンド除去 ---

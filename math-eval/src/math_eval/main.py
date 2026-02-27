@@ -214,6 +214,20 @@ def _strip_latex_spacing(expr: str) -> str:
     return _LATEX_SPACING_RE.sub(" ", expr)
 
 
+# 括弧サイズコマンドの除去
+# \bigl, \bigr, \Bigl, \Bigr, \biggl, \biggr, \Biggl, \Biggr,
+# \left, \right, \middle は視覚的サイズ指定のみで数式に影響しない
+_BRACKET_SIZE_RE = re.compile(
+    r"\\(?:big{1,2}|Big{1,2})[lr]"
+    r"|\\(?:left|right|middle)"
+)
+
+
+def _strip_bracket_sizing(expr: str) -> str:
+    r"""括弧サイズコマンド (\bigl, \bigr, \left, \right 等) を除去する。"""
+    return _BRACKET_SIZE_RE.sub("", expr)
+
+
 def _expand_pm_mp(expr: str) -> list[str]:
     r"""Expand \pm and \mp in expression to generate all combinations.
 
@@ -276,6 +290,7 @@ def _extended_parse(expr: str) -> list:
 
     Features:
     - 確率変数の正規化: P(X=k) → p_{Xk}
+    - 括弧サイズコマンド除去: \bigl, \bigr, \left, \right 等
     - LaTeX スペーシング除去: \,, \;, \quad 等 → スペース
     - 複数数式ブロックのマージ: $a$. $b$ → $a, b$
     - 不等号の正規化: \geqq → \geq, \leqq → \leq 等
@@ -283,6 +298,7 @@ def _extended_parse(expr: str) -> list:
     - \pm/\mp expansion: expands to both + and - variants, returns as FiniteSet
     """
     expr = _normalize_prob_vars(expr)
+    expr = _strip_bracket_sizing(expr)
     expr = _strip_latex_spacing(expr)
     expr = _merge_math_blocks(expr)
     expr = _normalize_inequalities(expr)
