@@ -21,7 +21,7 @@ from math_verify import parse, verify, LatexExtractionConfig, ExprExtractionConf
 from latex2sympy2_extended import latex2sympy
 from latex2sympy2_extended.math_normalization import NormalizationConfig
 from latex2sympy2_extended.sets import FiniteSet as L2SFiniteSet
-from sympy import Eq, FiniteSet, I, Interval, Union, latex, srepr
+from sympy import Eq, FiniteSet, I, Interval, S, Union, latex, srepr
 from sympy.core.relational import Relational
 
 app = typer.Typer()
@@ -536,12 +536,14 @@ def _combine_intervals(intervals: list):
     except Exception:
         pass
     # Intersection (AND 解釈): reduce で逐次的に交差
+    # EmptySet は除外（矛盾する不等式同士が空集合で一致する誤判定を防ぐ）
     if len(intervals) >= 2:
         try:
             result = intervals[0]
             for iv in intervals[1:]:
                 result = result.intersect(iv)
-            candidates.append(result)
+            if result is not S.EmptySet:
+                candidates.append(result)
         except Exception:
             pass
     elif len(intervals) == 1:
