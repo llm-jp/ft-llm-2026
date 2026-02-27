@@ -107,6 +107,18 @@ def test_vee_lor(prediction: str, gold: str, expected: bool) -> None:
             r"$(-2, 1)$",
             True,
         ),
+        # 多変数連立不等式: 連鎖不等式 vs 式変形された個別不等式
+        (
+            r"$a > 0 \wedge 4 a^{2} + b > 0 \wedge b < 0$",
+            r"\[a > 0, - 4a^{2} < b < 0\]",
+            True,
+        ),
+        # 多変数連立不等式: 値が異なる場合は不一致
+        (
+            r"$a > 0 \wedge 4 a^{2} + b > 0 \wedge b > 0$",
+            r"\[a > 0, - 4a^{2} < b < 0\]",
+            False,
+        ),
     ],
 )
 def test_wedge_land(prediction: str, gold: str, expected: bool) -> None:

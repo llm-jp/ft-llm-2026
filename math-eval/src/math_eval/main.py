@@ -379,6 +379,78 @@ def _relational_to_interval(rel, var):
     return None
 
 
+def _flatten_to_atoms(expr) -> list | None:
+    """And/連鎖不等式を再帰展開してアトミックな Relational のリストを返す。
+
+    Relational でも And でもない要素が含まれる場合は None を返す。
+    """
+    from sympy import And as SympyAnd
+
+    if isinstance(expr, Relational):
+        return [expr]
+    if isinstance(expr, SympyAnd):
+        atoms = []
+        for arg in expr.args:
+            sub = _flatten_to_atoms(arg)
+            if sub is None:
+                return None
+            atoms.extend(sub)
+        return atoms
+    return None
+
+
+def _normalize_ineq_direction(rel):
+    """不等式を (simplify(lhs - rhs), strict?) に正規化する。
+
+    全て > 0 (strict) または >= 0 (non-strict) 方向に統一し、
+    simplify した差分式を返す。
+    """
+    from sympy import simplify as sym_simplify
+    from sympy import StrictLessThan, LessThan, StrictGreaterThan, GreaterThan
+
+    diff = rel.lhs - rel.rhs
+    if isinstance(rel, (StrictLessThan, LessThan)):
+        diff = -diff
+    strict = isinstance(rel, (StrictLessThan, StrictGreaterThan))
+    return (sym_simplify(diff), strict)
+
+
+def _verify_inequality_atoms(g_val, p_val) -> bool:
+    """FiniteSet{不等式} 同士をアトミック不等式の集合として比較する。
+
+    And や連鎖不等式を展開し、各不等式を (lhs - rhs) > 0 方向に正規化。
+    simplify 後の集合が一致すれば True。
+    """
+    if not isinstance(g_val, L2SFiniteSet) or not isinstance(p_val, L2SFiniteSet):
+        return False
+
+    # 全要素を展開してアトミック不等式のリストにする
+    g_atoms = []
+    for arg in g_val._unsorted_args:
+        flat = _flatten_to_atoms(arg)
+        if flat is None:
+            return False
+        g_atoms.extend(flat)
+
+    p_atoms = []
+    for arg in p_val._unsorted_args:
+        flat = _flatten_to_atoms(arg)
+        if flat is None:
+            return False
+        p_atoms.extend(flat)
+
+    if len(g_atoms) != len(p_atoms):
+        return False
+
+    # 各不等式を正規化して集合比較
+    try:
+        g_normalized = {_normalize_ineq_direction(a) for a in g_atoms}
+        p_normalized = {_normalize_ineq_direction(a) for a in p_atoms}
+        return g_normalized == p_normalized
+    except Exception:
+        return False
+
+
 def _inequalities_to_intervals(expr) -> list | None:
     """FiniteSet{不等式} の各不等式を Interval に変換したリストを返す。
 
@@ -390,8 +462,14 @@ def _inequalities_to_intervals(expr) -> list | None:
         return None
 
     args = list(expr._unsorted_args)
-    if not all(isinstance(arg, Relational) for arg in args):
-        return None
+    # And や連鎖不等式を含む場合もアトミック展開して Relational のみ抽出
+    flat_args = []
+    for arg in args:
+        flat = _flatten_to_atoms(arg)
+        if flat is None:
+            return None
+        flat_args.extend(flat)
+    args = flat_args
 
     # 方法1: as_set() を試す
     intervals = []
@@ -452,11 +530,18 @@ def _combine_intervals(intervals: list):
 def _verify_interval(parsed_gold: list, parsed_pred: list) -> bool:
     """不等式 ↔ 区間表記の比較。
 
-    FiniteSet{x < a, b < x} を Union/Intersection(Interval) に変換し、
-    区間表記 (Union, Interval) と比較する。
+    1. アトミック不等式の集合比較（多変数・式変形を含むケース）
+    2. FiniteSet{不等式} → Union/Intersection(Interval) 変換（単変数ケース）
     """
     g_val = parsed_gold[0] if parsed_gold else None
     p_val = parsed_pred[0] if parsed_pred else None
+
+    # アトミック不等式の集合比較（多変数の連立不等式に有効）
+    if g_val is not None and p_val is not None:
+        if _verify_inequality_atoms(g_val, p_val):
+            return True
+
+    # 区間変換フォールバック（単変数の不等式 ↔ 区間表記）
     g_intervals = _inequalities_to_intervals(g_val) if g_val is not None else None
     p_intervals = _inequalities_to_intervals(p_val) if p_val is not None else None
 
