@@ -105,6 +105,15 @@ _LATEX_CONFIG_NO_UNITS = LatexExtractionConfig(
 _EXTRACTION_CONFIG = [_LATEX_CONFIG_NO_UNITS, ExprExtractionConfig()]
 
 
+# XML タグ除去: LLM 出力に含まれる <answer> 等のタグを除去する
+_XML_TAG_RE = re.compile(r"</?[a-zA-Z][a-zA-Z0-9_-]*(?:\s[^>]*)?>")
+
+
+def _strip_xml_tags(text: str) -> str:
+    """XML/HTML タグを除去する。"""
+    return _XML_TAG_RE.sub("", text)
+
+
 _MATH_DELIMITER_RE = re.compile(
     r"(?<!\\)\$\$"      # $$
     r"|(?<!\\)\\\["     # \[
@@ -433,6 +442,9 @@ def parse_and_verify(
             UserWarning,
             stacklevel=2,
         )
+
+    # prediction に含まれる XML タグ (<output> 等) を除去
+    prediction = _strip_xml_tags(prediction)
 
     try:
         if isinstance(gold, list):
