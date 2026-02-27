@@ -50,3 +50,33 @@ def test_complex_pm(prediction: str, gold: str, expected: bool) -> None:
     r"""複素数 + \pm/\mp の complex モードでの検証。"""
     result = parse_and_verify(prediction, gold, evaluation_method="complex")
     assert result == expected
+
+
+# --- バグ修正の回帰テスト ---
+
+
+@pytest.mark.parametrize(
+    "prediction, gold, expected",
+    [
+        # Bug1: i を含まない式での二重デリミタ
+        (r"$\frac{\pi}{4}$", r"\[\frac{\pi}{4}\]", True),
+        (r"$-1$", r"$-1$", True),
+        # Bug2: FiniteSet に対する .expand() クラッシュ
+        (r"$x = -3, 1 - 2i, 1 + 2i$", r"\[x = - 3,1 \pm 2i\]", True),
+        (r"$\{-3, 1 \pm 2i\}$", r"\[x = - 3,1 \pm 2i\]", True),
+        # Bug3: simplify() による形の不一致 (極形式 vs 指数形式)
+        (
+            r"$2 e^{\frac{5 i \pi}{6}}$",
+            r"$2\left( \cos\frac{5}{6}\pi + i\sin\frac{5}{6}\pi \right)$",
+            True,
+        ),
+        # 基本的な複素数 (回帰テスト)
+        (r"$\frac{11+3i}{5}$", r"$\frac{11+3i}{5}$", True),
+        (r"$4 - 4i$", r"$4 - 4i$", True),
+        (r"$-i$", r"$-i$", True),
+    ],
+)
+def test_complex_bugfix(prediction: str, gold: str, expected: bool) -> None:
+    """バグ報告に基づく回帰テスト。"""
+    result = parse_and_verify(prediction, gold, evaluation_method="complex")
+    assert result == expected

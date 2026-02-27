@@ -331,38 +331,56 @@ def _verify_strict(prediction: str, gold: str) -> bool:
 
 
 def _verify_complex(prediction: str, gold: str) -> bool:
-    """Complex evaluation: シンボル i を虚数単位 I に変換してから soft 評価する。"""
+    """Complex evaluation: 変数 i を虚数単位 I として扱い比較する。
 
-    def __subs_i_to_imag(expr):
-        """単一の sympy 式に対して、シンボル i を虚数単位 I に置換する。"""
+    処理:
+    1. 式をパースして sympy オブジェクトを取得
+    2. free_symbols 中の i を虚数単位 I に置換
+    3. verify() で直接比較（LaTeX 再変換を挟まない）
+    4. .equals() でシンボル仮定を統一して数値的等価性チェック
+       (Euler 公式など verify() だけでは判定できない同値性を判定)
+    5. パース失敗・判定失敗時は _verify_soft にフォールバック
+    """
+
+    def _subs_i(expr):
+        """式中の自由変数 i を虚数単位 I に置換する。"""
         if not hasattr(expr, "free_symbols"):
             return expr
-        i_symbols = [sym for sym in expr.free_symbols if str(sym) == "i"]
-        if not i_symbols:
+        i_syms = [s for s in expr.free_symbols if str(s) == "i"]
+        if not i_syms:
             return expr
-        return expr.subs(i_symbols[0], I).expand().simplify()
+        return expr.subs(i_syms[0], I)
 
-    def __convert_i_to_imag(expr_str: str) -> str:
-        parsed = _extended_parse(expr_str)
-        if not parsed:
-            return expr_str
+    try:
+        p_parsed = _extended_parse(prediction)[0]
+        g_parsed = _extended_parse(gold)[0]
+    except Exception:
+        return _verify_soft(prediction, gold)
 
-        parsed_expr = parsed[0]
+    p_sub = _subs_i(p_parsed)
+    g_sub = _subs_i(g_parsed)
 
-        # FiniteSet: 各要素に対して i → I 変換を適用
-        if isinstance(parsed_expr, FiniteSet):
-            converted = [__subs_i_to_imag(elem) for elem in parsed_expr]
-            latex_parts = [latex(c) for c in converted]
-            return "$" + ", ".join(latex_parts) + "$"
+    # 1. verify() で直接比較
+    if verify([g_sub], [p_sub]):
+        return True
 
-        converted = __subs_i_to_imag(parsed_expr)
-        if converted is not parsed_expr:
-            return "$" + latex(converted) + "$"
+    # 2. シンボル仮定を統一して .equals() で数値的等価性チェック
+    #    パーサーがシンボルに異なる仮定 (real=True/False) を付けることがあるため、
+    #    gold のシンボルを pred のシンボルに統一する
+    try:
+        p_sym_map = {str(s): s for s in p_sub.free_symbols} if hasattr(p_sub, "free_symbols") else {}
+        g_unified = g_sub
+        if hasattr(g_sub, "free_symbols"):
+            for s in list(g_sub.free_symbols):
+                if str(s) in p_sym_map and s != p_sym_map[str(s)]:
+                    g_unified = g_unified.subs(s, p_sym_map[str(s)])
+        if hasattr(p_sub, "equals") and p_sub.equals(g_unified):
+            return True
+    except Exception:
+        pass
 
-        return expr_str
-
-    prediction = __convert_i_to_imag(prediction)
-    gold = __convert_i_to_imag(gold)
+    # 3. _verify_soft にフォールバック
+    #    (括弧フォールバック、Eq vs FiniteSet の構造不一致等を処理)
     return _verify_soft(prediction, gold)
 
 
