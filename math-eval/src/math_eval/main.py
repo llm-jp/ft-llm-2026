@@ -39,7 +39,7 @@ def _custom_warning_format(message, category, filename, lineno, _file=None, _lin
 
 warnings.showwarning = _custom_warning_format
 
-EvaluationMethod = Literal["soft", "strict", "complex"]
+EvaluationMethod = Literal["soft", "strict", "complex", "complex-strict"]
 
 
 @dataclasses.dataclass
@@ -693,6 +693,9 @@ def _verify_single(
         return _verify_strict(prediction, gold)
     elif evaluation_method == "complex":
         return _verify_complex(prediction, gold)
+    elif evaluation_method == "complex-strict":
+        # complex で合っていて、かつ strict でも合っていることを確認
+        return _verify_complex(prediction, gold) and _verify_strict(prediction, gold)
     elif evaluation_method == "soft" or evaluation_method is None:
         return _verify_soft(prediction, gold)
     else:
