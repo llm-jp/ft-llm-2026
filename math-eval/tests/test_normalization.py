@@ -18,6 +18,7 @@ from math_eval.main import (
     _normalize_inequalities,
     _normalize_logical_connectives,
     _merge_math_blocks,
+    _normalize_prob_vars,
     parse_and_verify,
 )
 
@@ -230,6 +231,33 @@ class TestMergeMathBlocks:
         assert _merge_math_blocks("hello world") == "hello world"
 
 
+# --- 確率変数の正規化 ---
+
+
+class TestNormalizeProbVars:
+    r"""_normalize_prob_vars の単体テスト。"""
+
+    def test_basic(self):
+        assert _normalize_prob_vars(r"P(X=0)=\frac{1}{6}") == r"p_{X0}=\frac{1}{6}"
+
+    def test_with_spaces(self):
+        assert _normalize_prob_vars(r"P(X = 2) = \frac{5}{12}") == r"p_{X2} = \frac{5}{12}"
+
+    def test_different_var(self):
+        assert _normalize_prob_vars(r"P(Y=3)=0.25") == r"p_{Y3}=0.25"
+
+    def test_multi_digit(self):
+        assert _normalize_prob_vars(r"P( X = 10 ) = \frac{1}{3}") == r"p_{X10} = \frac{1}{3}"
+
+    def test_multiple(self):
+        expr = r"P(X=0)=\frac{1}{5}, P(X=1)=\frac{4}{5}"
+        expected = r"p_{X0}=\frac{1}{5}, p_{X1}=\frac{4}{5}"
+        assert _normalize_prob_vars(expr) == expected
+
+    def test_no_prob_var(self):
+        assert _normalize_prob_vars(r"x + 1") == r"x + 1"
+
+
 # --- 正規化の統合テスト (parse_and_verify 経由) ---
 
 
@@ -258,6 +286,24 @@ class TestMergeMathBlocks:
             r"$x < -2$. $1 < x$",
             r"$(-\infty, -2) \cup (1, \infty)$",
             True,
+        ),
+        # 確率変数: P(X=k) 表記の一致 (4/12 = 1/3)
+        (
+            r"\boxed{P(X=0)=\frac{1}{6},\ P(X=1)=\frac{1}{3},\ P(X=2)=\frac{1}{2}}",
+            r"\(P(X = 0) = \frac{1}{6}\),\(P(X = 1) = \frac{4}{12}\),\(P(X = 2) = \frac{6}{12}\)",
+            True,
+        ),
+        # 確率変数: 不完全な回答は不一致
+        (
+            r"$P(X = 1) = \frac{1}{3}, \quad P(X = 2) = \frac{1}{2}$",
+            r"\(P(X = 0) = \frac{1}{6}\),\(P(X = 1) = \frac{4}{12}\),\(P(X = 2) = \frac{6}{12}\)",
+            False,
+        ),
+        # 確率変数: 値が異なる場合は不一致
+        (
+            r"\boxed{P(X=0)=\frac{1}{6},\ P(X=1)=\frac{1}{4},\ P(X=2)=\frac{1}{2}}",
+            r"\(P(X = 0) = \frac{1}{6}\),\(P(X = 1) = \frac{4}{12}\),\(P(X = 2) = \frac{6}{12}\)",
+            False,
         ),
     ],
 )

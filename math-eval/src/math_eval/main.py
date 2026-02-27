@@ -148,6 +148,19 @@ def _ensure_math_delimiters(expr: str) -> str:
     return f"${expr}$"
 
 
+# 確率変数の正規化: P(X=k) → p_{Xk} に変換
+# P(X=0)=\frac{1}{28} の括弧内の = がパーサーを混乱させるため、
+# 変数名に変換してから Eq としてパースさせる
+_PROB_VAR_RE = re.compile(r"P\s*\(\s*([A-Za-z])\s*=\s*([^)]+?)\s*\)")
+
+
+def _normalize_prob_vars(expr: str) -> str:
+    r"""確率変数 P(X=k) を p_{Xk} に正規化する。"""
+    return _PROB_VAR_RE.sub(
+        lambda m: f"p_{{{m.group(1)}{m.group(2).strip()}}}", expr
+    )
+
+
 # 不等号の正規化: 日本式の二重線 (\geqq 等) を標準形 (\geq 等) に統一
 _INEQUALITY_NORMALIZE_MAP = {
     r"\geqq": r"\geq",
@@ -262,12 +275,14 @@ def _extended_parse(expr: str) -> list:
     r"""Extended parse with additional preprocessing.
 
     Features:
+    - 確率変数の正規化: P(X=k) → p_{Xk}
     - LaTeX スペーシング除去: \,, \;, \quad 等 → スペース
     - 複数数式ブロックのマージ: $a$. $b$ → $a, b$
     - 不等号の正規化: \geqq → \geq, \leqq → \leq 等
     - 論理記号の正規化: \vee, \lor, \wedge, \land → , (カンマ)
     - \pm/\mp expansion: expands to both + and - variants, returns as FiniteSet
     """
+    expr = _normalize_prob_vars(expr)
     expr = _strip_latex_spacing(expr)
     expr = _merge_math_blocks(expr)
     expr = _normalize_inequalities(expr)
