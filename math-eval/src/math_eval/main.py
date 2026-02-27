@@ -117,7 +117,8 @@ def _strip_xml_tags(text: str) -> str:
 
 # 数値トークン間スペース除去: LaTeX 数式モードでは無視されるスペースを正規化
 # 例: "0. 7" → "0.7", "1 2 3" → "123"
-_DIGIT_SPACE_RE = re.compile(r"(?<=[0-9])\s+(?=[0-9.])|(?<=[.])\s+(?=[0-9])")
+# ただし添字直後 (_2 3) は除外: \log_2 3 → \log_23 になるのを防ぐ
+_DIGIT_SPACE_RE = re.compile(r"(?<=[0-9])(?<!_[0-9])\s+(?=[0-9.])|(?<=[.])\s+(?=[0-9])")
 
 
 def _normalize_digit_spaces(text: str) -> str:
