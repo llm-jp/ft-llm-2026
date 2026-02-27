@@ -223,6 +223,11 @@ _BRACKET_SIZE_RE = re.compile(
 )
 
 
+# \log (底なし) ↔ \ln フォールバック用正規表現
+# \log_2, \log_{10} 等は底が明示されているので対象外
+_LOG_NO_BASE_RE = re.compile(r"\\log(?![_a-zA-Z])")
+
+
 def _strip_bracket_sizing(expr: str) -> str:
     r"""括弧サイズコマンド (\bigl, \bigr, \left, \right 等) を除去する。"""
     return _BRACKET_SIZE_RE.sub("", expr)
@@ -645,6 +650,17 @@ def _verify_soft(prediction: str, gold: str) -> bool:
                 return True
         except Exception:
             continue
+
+    # \log (底なし) ↔ \ln フォールバック
+    if _LOG_NO_BASE_RE.search(prediction) or _LOG_NO_BASE_RE.search(gold):
+        pred_ln = _LOG_NO_BASE_RE.sub(r"\\ln", prediction)
+        gold_ln = _LOG_NO_BASE_RE.sub(r"\\ln", gold)
+        if (pred_ln, gold_ln) != (prediction, gold):
+            try:
+                if verify(_extended_parse(gold_ln), _extended_parse(pred_ln)):
+                    return True
+            except Exception:
+                pass
 
     return False
 

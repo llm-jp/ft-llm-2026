@@ -334,6 +334,11 @@ class TestNormalizeProbVars:
             r"\(P(X = 0) = \frac{1}{6}\),\(P(X = 1) = \frac{4}{12}\),\(P(X = 2) = \frac{6}{12}\)",
             False,
         ),
+        # \log (底なし) ↔ \ln フォールバック
+        (r"$\log 2$", r"$\ln 2$", True),
+        (r"$\ln 3$", r"$\log 3$", True),
+        # \log_2 (底あり) は \ln に変換しない
+        (r"$\log_2 8$", r"$\ln 8$", False),
     ],
 )
 def test_normalization_integration(
