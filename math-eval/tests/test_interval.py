@@ -127,6 +127,46 @@ def test_wedge_land(prediction: str, gold: str, expected: bool) -> None:
     assert result == expected
 
 
+# --- 連鎖不等式 → 区間 (intersection) ---
+
+
+@pytest.mark.parametrize(
+    "prediction, gold, expected",
+    [
+        # 1 < x ≤ 3 → (1, 3]  +  5 ≤ x → [5, ∞)
+        (
+            r"$\left(1, 3\right] \cup \left[5, \infty\right)$",
+            r"\[1 < x \leqq 3, 5 \leqq x\]",
+            True,
+        ),
+        # -3 < x ≤ 7 → (-3, 7]
+        (
+            r"$(-3, 7]$",
+            r"$-3 < x \leq 7$",
+            True,
+        ),
+        # 2 ≤ x < 9 → [2, 9)
+        (
+            r"$[2, 9)$",
+            r"$2 \leq x < 9$",
+            True,
+        ),
+        # 値が異なる場合は不一致
+        (
+            r"$(-3, 10]$",
+            r"$-3 < x \leq 7$",
+            False,
+        ),
+    ],
+)
+def test_chained_inequality_interval(
+    prediction: str, gold: str, expected: bool
+) -> None:
+    r"""連鎖不等式 (0 < x ≤ 1/2) と区間表記の相互比較。"""
+    result = parse_and_verify(prediction, gold, evaluation_method="soft")
+    assert result == expected
+
+
 # --- FiniteSet ↔ Interval の括弧フォールバック (許容) ---
 
 

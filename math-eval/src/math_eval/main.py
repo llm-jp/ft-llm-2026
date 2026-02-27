@@ -520,41 +520,68 @@ def _inequalities_to_intervals(expr) -> list | None:
         return None
 
     args = list(expr._unsorted_args)
-    # And や連鎖不等式を含む場合もアトミック展開して Relational のみ抽出
-    flat_args = []
+
+    # 全要素のアトムを収集
+    all_atom_groups = []  # 各要素ごとのアトムリスト
     for arg in args:
-        flat = _flatten_to_atoms(arg)
-        if flat is None:
+        atoms = _flatten_to_atoms(arg)
+        if atoms is None:
             return None
-        flat_args.extend(flat)
-    args = flat_args
+        all_atom_groups.append(atoms)
 
-    # 方法1: as_set() を試す
-    intervals = []
-    try:
-        for arg in args:
-            intervals.append(arg.as_set())
-        return intervals
-    except Exception:
-        pass
+    # 方法1: 単変数の場合 as_set() を使う
+    # 全アトムの自由変数が1つだけなら as_set() が正しく動作する
+    all_free = set()
+    for atoms in all_atom_groups:
+        for a in atoms:
+            all_free |= a.free_symbols
+    if len(all_free) == 1:
+        try:
+            intervals = []
+            for atoms in all_atom_groups:
+                atom_intervals = [a.as_set() for a in atoms]
+                if len(atom_intervals) == 1:
+                    intervals.append(atom_intervals[0])
+                else:
+                    # And のアトムは交差
+                    result = atom_intervals[0]
+                    for iv in atom_intervals[1:]:
+                        result = result.intersect(iv)
+                    intervals.append(result)
+            return intervals
+        except Exception:
+            pass
 
-    # 方法2: 共通変数を特定して手動変換
-    # 全不等式に共通する変数を探し、各変数で変換を試みる
+    # 方法2: 共通変数を特定して _relational_to_interval で手動変換
     common_vars = None
-    for arg in args:
-        syms = arg.free_symbols
-        common_vars = syms if common_vars is None else common_vars & syms
+    for atoms in all_atom_groups:
+        for a in atoms:
+            syms = a.free_symbols
+            common_vars = syms if common_vars is None else common_vars & syms
     if not common_vars:
         return None
 
     for var in sorted(common_vars, key=str):
         intervals = []
-        for arg in args:
-            iv = _relational_to_interval(arg, var)
-            if iv is None:
+        ok = True
+        for atoms in all_atom_groups:
+            atom_intervals = []
+            for a in atoms:
+                iv = _relational_to_interval(a, var)
+                if iv is None:
+                    ok = False
+                    break
+                atom_intervals.append(iv)
+            if not ok:
                 break
-            intervals.append(iv)
-        else:
+            if len(atom_intervals) == 1:
+                intervals.append(atom_intervals[0])
+            else:
+                result = atom_intervals[0]
+                for iv in atom_intervals[1:]:
+                    result = result.intersect(iv)
+                intervals.append(result)
+        if ok:
             return intervals
     return None
 
