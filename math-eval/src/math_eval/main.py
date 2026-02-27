@@ -369,6 +369,17 @@ def _paren_variants(expr: str) -> list[str]:
     s = s.replace(r"\(", "\x01IO\x01")
     s = s.replace(r"\)", "\x01IC\x01")
 
+    # \sqrt[n] の [n] を保護（n乗根の記法を壊さない）
+    import re as _re
+
+    _sqrt_bracket_re = _re.compile(r"\\sqrt\[([^\]]*)\]")
+    _sqrt_placeholders: list[str] = []
+    def _protect_sqrt(m: _re.Match) -> str:
+        idx = len(_sqrt_placeholders)
+        _sqrt_placeholders.append(m.group(0))
+        return f"\x02SQRT{idx}\x02"
+    s = _sqrt_bracket_re.sub(_protect_sqrt, s)
+
     # \left/\right 付き括弧をプレースホルダに置換（長いパターンから先に）
     for pat in [r"\left\{", r"\left(", r"\left["]:
         if pat in s:
@@ -406,6 +417,9 @@ def _paren_variants(expr: str) -> list[str]:
         # 保護した数式デリミタを復元
         v = v.replace("\x01DO\x01", r"\[").replace("\x01DC\x01", r"\]")
         v = v.replace("\x01IO\x01", r"\(").replace("\x01IC\x01", r"\)")
+        # \sqrt[n] を復元
+        for idx, orig in enumerate(_sqrt_placeholders):
+            v = v.replace(f"\x02SQRT{idx}\x02", orig)
         if v != expr:
             variants.append(v)
 
