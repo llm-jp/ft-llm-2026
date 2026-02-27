@@ -114,6 +114,16 @@ def _strip_xml_tags(text: str) -> str:
     return _XML_TAG_RE.sub("", text)
 
 
+# 数値トークン間スペース除去: LaTeX 数式モードでは無視されるスペースを正規化
+# 例: "0. 7" → "0.7", "1 2 3" → "123"
+_DIGIT_SPACE_RE = re.compile(r"(?<=[0-9])\s+(?=[0-9.])|(?<=[.])\s+(?=[0-9])")
+
+
+def _normalize_digit_spaces(text: str) -> str:
+    """数値トークン間の不要なスペースを除去する。"""
+    return _DIGIT_SPACE_RE.sub("", text)
+
+
 _MATH_DELIMITER_RE = re.compile(
     r"(?<!\\)\$\$"      # $$
     r"|(?<!\\)\\\["     # \[
@@ -443,8 +453,9 @@ def parse_and_verify(
             stacklevel=2,
         )
 
-    # prediction に含まれる XML タグ (<output> 等) を除去
+    # prediction に含まれる XML タグ (<answer> 等) を除去し、数値間スペースを正規化
     prediction = _strip_xml_tags(prediction)
+    prediction = _normalize_digit_spaces(prediction)
 
     try:
         if isinstance(gold, list):
