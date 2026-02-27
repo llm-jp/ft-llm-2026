@@ -21,7 +21,8 @@ from math_verify import parse, verify, LatexExtractionConfig, ExprExtractionConf
 from latex2sympy2_extended import latex2sympy
 from latex2sympy2_extended.math_normalization import NormalizationConfig
 from latex2sympy2_extended.sets import FiniteSet as L2SFiniteSet
-from sympy import Eq, FiniteSet, I, latex, srepr
+from sympy import Eq, FiniteSet, I, Interval, Union, latex, srepr
+from sympy.core.relational import Relational
 
 app = typer.Typer()
 
@@ -167,6 +168,20 @@ def _normalize_inequalities(expr: str) -> str:
     )
 
 
+# 論理記号の正規化: \vee, \lor, \wedge, \land, \text{または}, or 等を , に置換
+# latex2sympy2_extended がこれらをパースできないため、カンマ区切りに変換する
+_LOGICAL_CONNECTIVE_RE = re.compile(
+    r"\\(?:vee|lor|wedge|land)(?![a-zA-Z])"
+    r"|\\text\s*\{(?:または|かつ|or|and)\}"
+    r"|\b(?:or|and)\b"
+)
+
+
+def _normalize_logical_connectives(expr: str) -> str:
+    r"""論理記号 (\vee, \lor, \text{または}, or 等) をカンマに正規化する。"""
+    return _LOGICAL_CONNECTIVE_RE.sub(",", expr)
+
+
 def _expand_pm_mp(expr: str) -> list[str]:
     r"""Expand \pm and \mp in expression to generate all combinations.
 
@@ -193,14 +208,48 @@ def _expand_pm_mp(expr: str) -> list[str]:
     return results
 
 
+# 複数数式ブロックのマージ: $expr1$ <区切り> $expr2$ → $expr1, expr2$
+# parse() は最後の数式ブロックのみ拾うため、区切り文字で連結されたブロックを統合する
+# 対応デリミタ: $...$, \[...\], \(...\)
+_MATH_BLOCK_SEP_RE = re.compile(
+    r"(?:\$|\\\]|\\\))"                 # 前ブロックの閉じデリミタ
+    r"\s*"                              # 空白
+    r"(?:"
+    r"[.,、，;]"                          # 句読点・カンマ・セミコロン
+    r"|または|かつ"                      # 日本語接続詞
+    r"|\bor\b|\band\b"                   # 英語接続詞
+    r")?"                               # 区切りは省略可 (空白のみ)
+    r"\s*"                              # 空白
+    r"(?:\$|\\\[|\\\()"                 # 次ブロックの開きデリミタ
+)
+
+
+def _merge_math_blocks(text: str) -> str:
+    r"""隣接する数式ブロックを単一ブロックに統合する。
+
+    $expr1$. $expr2$ → $expr1, expr2$
+    \[expr1\]. \[expr2\] → \[expr1, expr2\]
+    $expr1$ または $expr2$ → $expr1, expr2$
+
+    対応デリミタ: $...$, \[...\], \(...\)
+    parse() は複数ブロックの最後しか拾わないため、
+    区切り文字で連結されたブロックを事前にマージする。
+    """
+    return _MATH_BLOCK_SEP_RE.sub(", ", text)
+
+
 def _extended_parse(expr: str) -> list:
     r"""Extended parse with additional preprocessing.
 
     Features:
+    - 複数 $...$ ブロックのマージ
     - 不等号の正規化: \geqq → \geq, \leqq → \leq 等
+    - 論理記号の正規化: \vee, \lor, \wedge, \land → , (カンマ)
     - \pm/\mp expansion: expands to both + and - variants, returns as FiniteSet
     """
+    expr = _merge_math_blocks(expr)
     expr = _normalize_inequalities(expr)
+    expr = _normalize_logical_connectives(expr)
     expanded_exprs = _expand_pm_mp(expr)
 
     if len(expanded_exprs) == 1:
@@ -304,12 +353,138 @@ def _paren_variants(expr: str) -> list[str]:
     return variants
 
 
+def _relational_to_interval(rel, var):
+    """単一の不等式を Interval に変換する。
+
+    var が不等式の片側に単独で出現する場合のみ対応。
+    例: x < a → (-∞, a), b < x → (b, ∞)
+    """
+    from sympy import oo, StrictLessThan, StrictGreaterThan, LessThan, GreaterThan
+
+    lhs, rhs = rel.lhs, rel.rhs
+    var_on_left = (lhs == var)
+    var_on_right = (rhs == var)
+    if not var_on_left and not var_on_right:
+        return None
+
+    if isinstance(rel, StrictLessThan):
+        # var < rhs or lhs < var
+        return Interval.open(-oo, rhs) if var_on_left else Interval.open(lhs, oo)
+    elif isinstance(rel, LessThan):
+        return Interval(-oo, rhs) if var_on_left else Interval(lhs, oo)
+    elif isinstance(rel, StrictGreaterThan):
+        return Interval.open(rhs, oo) if var_on_left else Interval.open(-oo, lhs)
+    elif isinstance(rel, GreaterThan):
+        return Interval(rhs, oo) if var_on_left else Interval(-oo, lhs)
+    return None
+
+
+def _inequalities_to_intervals(expr) -> list | None:
+    """FiniteSet{不等式} の各不等式を Interval に変換したリストを返す。
+
+    全要素が Relational (不等式) でない場合は None を返す。
+    1. as_set() を試す（単変数の数値ケース）
+    2. 失敗時は共通変数を特定し手動で区間構築（多変数・記号ケース）
+    """
+    if not isinstance(expr, L2SFiniteSet):
+        return None
+
+    args = list(expr._unsorted_args)
+    if not all(isinstance(arg, Relational) for arg in args):
+        return None
+
+    # 方法1: as_set() を試す
+    intervals = []
+    try:
+        for arg in args:
+            intervals.append(arg.as_set())
+        return intervals
+    except Exception:
+        pass
+
+    # 方法2: 共通変数を特定して手動変換
+    # 全不等式に共通する変数を探し、各変数で変換を試みる
+    common_vars = None
+    for arg in args:
+        syms = arg.free_symbols
+        common_vars = syms if common_vars is None else common_vars & syms
+    if not common_vars:
+        return None
+
+    for var in sorted(common_vars, key=str):
+        intervals = []
+        for arg in args:
+            iv = _relational_to_interval(arg, var)
+            if iv is None:
+                break
+            intervals.append(iv)
+        else:
+            return intervals
+    return None
+
+
+def _combine_intervals(intervals: list):
+    r"""Interval リストから Union と Intersection の候補を返す。
+
+    \vee (OR) → Union, \wedge (AND) → Intersection の両方を返し、
+    verify でマッチするほうを採用する。
+    """
+    candidates = []
+    # Union (OR 解釈)
+    try:
+        candidates.append(Union(*intervals))
+    except Exception:
+        pass
+    # Intersection (AND 解釈): reduce で逐次的に交差
+    if len(intervals) >= 2:
+        try:
+            result = intervals[0]
+            for iv in intervals[1:]:
+                result = result.intersect(iv)
+            candidates.append(result)
+        except Exception:
+            pass
+    elif len(intervals) == 1:
+        candidates.append(intervals[0])
+    return candidates
+
+
+def _verify_interval(parsed_gold: list, parsed_pred: list) -> bool:
+    """不等式 ↔ 区間表記の比較。
+
+    FiniteSet{x < a, b < x} を Union/Intersection(Interval) に変換し、
+    区間表記 (Union, Interval) と比較する。
+    """
+    g_val = parsed_gold[0] if parsed_gold else None
+    p_val = parsed_pred[0] if parsed_pred else None
+    g_intervals = _inequalities_to_intervals(g_val) if g_val is not None else None
+    p_intervals = _inequalities_to_intervals(p_val) if p_val is not None else None
+
+    if g_intervals is None and p_intervals is None:
+        return False
+
+    g_candidates = _combine_intervals(g_intervals) if g_intervals else [g_val]
+    p_candidates = _combine_intervals(p_intervals) if p_intervals else [p_val]
+    for g_cmp in g_candidates:
+        for p_cmp in p_candidates:
+            try:
+                if verify([g_cmp], [p_cmp]):
+                    return True
+            except Exception:
+                continue
+    return False
+
+
 def _verify_soft(prediction: str, gold: str) -> bool:
     """Soft evaluation: allows calculation, with bracket variant fallback."""
     parsed_gold = _extended_parse(gold)
     parsed_pred = _extended_parse(prediction)
 
     if verify(parsed_gold, parsed_pred):
+        return True
+
+    # 不等式 → 区間変換フォールバック
+    if _verify_interval(parsed_gold, parsed_pred):
         return True
 
     # 括弧フォールバック: prediction の括弧の種類を変えて再検証
