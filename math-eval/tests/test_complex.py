@@ -1,3 +1,10 @@
+r"""test_complex.py
+
+complex モード（シンボル i → 虚数単位 I 変換）のテスト。
+- 基本的な複素数の等価性
+- \pm/\mp と複素数の組み合わせ
+"""
+
 import pytest
 
 from math_eval.main import parse_and_verify
@@ -7,7 +14,7 @@ from math_eval.main import parse_and_verify
     "prediction, gold, expected",
     [
         (r"$1/i$", r"$-i$", True),
-        (r"$e^{i\theta} + e^{-i\theta}$", r"2\cos\theta", True),
+        (r"$e^{i\theta} + e^{-i\theta}$", r"$2\cos\theta$", True),
         (r"$e^{ix} / (\cos x + i \sin x)$", "1", True),
         (r"$e^{ix} * (\cos x - i \sin x)$", "1", True),
         (r"$e^{ix}$", r"$1/e^{-ix}$", True),
@@ -16,5 +23,30 @@ from math_eval.main import parse_and_verify
     ],
 )
 def test_verify(prediction: str, gold: str, expected: bool) -> None:
+    result = parse_and_verify(prediction, gold, evaluation_method="complex")
+    assert result == expected
+
+
+# --- 複素数 + \pm/\mp のテスト ---
+
+
+@pytest.mark.parametrize(
+    "prediction, gold, expected",
+    [
+        # \pm で展開される複素数
+        (r"$1 \pm 2i$", r"$1 + 2i, 1 - 2i$", True),
+        (r"$1 \pm 2i$", r"$1 \mp 2i$", True),
+        # 複素数の \pm と明示的な値
+        (r"$3 \pm 4i$", r"$3 + 4i, 3 - 4i$", True),
+        # 純虚数の \pm
+        (r"$\pm i$", r"$i, -i$", True),
+        (r"$\pm 3i$", r"$3i, -3i$", True),
+        # 値が異なる場合は不一致
+        (r"$1 \pm 2i$", r"$1 + 3i, 1 - 3i$", False),
+        (r"$1 \pm 2i$", r"$2 + 2i, 2 - 2i$", False),
+    ],
+)
+def test_complex_pm(prediction: str, gold: str, expected: bool) -> None:
+    r"""複素数 + \pm/\mp の complex モードでの検証。"""
     result = parse_and_verify(prediction, gold, evaluation_method="complex")
     assert result == expected

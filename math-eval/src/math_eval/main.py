@@ -20,7 +20,8 @@ from rich.table import Table
 from math_verify import parse, verify, LatexExtractionConfig, ExprExtractionConfig
 from latex2sympy2_extended import latex2sympy
 from latex2sympy2_extended.math_normalization import NormalizationConfig
-from sympy import FiniteSet, I, latex, srepr
+from latex2sympy2_extended.sets import FiniteSet as L2SFiniteSet
+from sympy import Eq, FiniteSet, I, latex, srepr
 
 app = typer.Typer()
 
@@ -187,18 +188,38 @@ def _extended_parse(expr: str) -> list:
         return parse(expr, extraction_config=_EXTRACTION_CONFIG)
 
     all_values = set()
+    all_equalities = []
+
     for expanded_expr in expanded_exprs:
         try:
             parsed = parse(expanded_expr, extraction_config=_EXTRACTION_CONFIG)
             if parsed:
                 val = parsed[0]
-                if hasattr(val, "__iter__") and not isinstance(val, str):
+                if isinstance(val, Eq):
+                    all_equalities.append(val)
+                elif hasattr(val, "__iter__") and not isinstance(val, str):
                     for v in val:
                         all_values.add(v)
                 else:
                     all_values.add(val)
         except Exception:
             pass
+
+    # 全展開結果が同じ LHS の Equality なら RHS の FiniteSet を統合
+    # Note: parse が返す FiniteSet は latex2sympy2_extended.sets.FiniteSet であり、
+    #       sympy.FiniteSet とは __eq__ が異なるため、L2SFiniteSet を使う必要がある
+    if all_equalities and not all_values:
+        lhs_set = {eq.lhs for eq in all_equalities}
+        if len(lhs_set) == 1:
+            lhs = lhs_set.pop()
+            merged_rhs = set()
+            for eq in all_equalities:
+                rhs = eq.rhs
+                if isinstance(rhs, FiniteSet):
+                    merged_rhs.update(v.doit() for v in rhs)
+                else:
+                    merged_rhs.add(rhs.doit())
+            return [Eq(lhs, L2SFiniteSet(*merged_rhs), evaluate=False)]
 
     if all_values:
         return [FiniteSet(*all_values)]
@@ -310,18 +331,35 @@ def _verify_strict(prediction: str, gold: str) -> bool:
 
 
 def _verify_complex(prediction: str, gold: str) -> bool:
-    """Complex evaluation: to be implemented."""
+    """Complex evaluation: シンボル i を虚数単位 I に変換してから soft 評価する。"""
+
+    def __subs_i_to_imag(expr):
+        """単一の sympy 式に対して、シンボル i を虚数単位 I に置換する。"""
+        if not hasattr(expr, "free_symbols"):
+            return expr
+        i_symbols = [sym for sym in expr.free_symbols if str(sym) == "i"]
+        if not i_symbols:
+            return expr
+        return expr.subs(i_symbols[0], I).expand().simplify()
 
     def __convert_i_to_imag(expr_str: str) -> str:
-        parsed_expr = _extended_parse(expr_str)[0]
-        has_i = any(str(sym) == "i" for sym in parsed_expr.free_symbols)
-        if has_i:
-            i_symbol = [sym for sym in parsed_expr.free_symbols if str(sym) == "i"][0]
-            sympy_expr = parsed_expr.subs(i_symbol, I).expand().simplify()
-            latex_expr = latex(sympy_expr)
-        else:
-            latex_expr = expr_str
-        return "$" + latex_expr + "$"
+        parsed = _extended_parse(expr_str)
+        if not parsed:
+            return expr_str
+
+        parsed_expr = parsed[0]
+
+        # FiniteSet: 各要素に対して i → I 変換を適用
+        if isinstance(parsed_expr, FiniteSet):
+            converted = [__subs_i_to_imag(elem) for elem in parsed_expr]
+            latex_parts = [latex(c) for c in converted]
+            return "$" + ", ".join(latex_parts) + "$"
+
+        converted = __subs_i_to_imag(parsed_expr)
+        if converted is not parsed_expr:
+            return "$" + latex(converted) + "$"
+
+        return expr_str
 
     prediction = __convert_i_to_imag(prediction)
     gold = __convert_i_to_imag(gold)
