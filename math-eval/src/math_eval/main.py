@@ -612,7 +612,10 @@ def _verify_soft(prediction: str, gold: str) -> bool:
         return True
 
     # 括弧フォールバック: prediction の括弧の種類を変えて再検証
-    for variant in _paren_variants(prediction):
+    # P(X=k) を先に正規化して、_paren_variants が P の括弧を変換しないようにする
+    pred_for_paren = _normalize_prob_vars(prediction)
+    gold_for_paren = _normalize_prob_vars(gold)
+    for variant in _paren_variants(pred_for_paren):
         try:
             if verify(parsed_gold, _extended_parse(variant)):
                 return True
@@ -620,7 +623,7 @@ def _verify_soft(prediction: str, gold: str) -> bool:
             continue
 
     # gold 側の括弧も変えて再検証
-    for variant in _paren_variants(gold):
+    for variant in _paren_variants(gold_for_paren):
         try:
             if verify(_extended_parse(variant), parsed_pred):
                 return True
