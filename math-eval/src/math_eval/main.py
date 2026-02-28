@@ -21,7 +21,7 @@ from math_verify import parse, verify, LatexExtractionConfig, ExprExtractionConf
 from latex2sympy2_extended import latex2sympy
 from latex2sympy2_extended.math_normalization import NormalizationConfig
 from latex2sympy2_extended.sets import FiniteSet as L2SFiniteSet
-from sympy import Eq, FiniteSet, I, Interval, S, Union, latex, srepr
+from sympy import Eq, FiniteSet, I, Interval, Matrix, S, Tuple as STuple, Union, latex, srepr
 from sympy.core.relational import Relational
 
 app = typer.Typer()
@@ -272,6 +272,53 @@ def _verify_vector_fallback(prediction: str, gold: str) -> bool:
         return verify(parsed_gold, parsed_pred)
     except Exception:
         return False
+
+
+# ---------------------------------------------------------------------------
+# 行列ベクトル ↔ タプル同一視: 縦ベクトル・横ベクトル・タプルを区別しない
+# ---------------------------------------------------------------------------
+
+
+def _to_flat_vector(val: object) -> list | None:
+    """Matrix(列/行ベクトル), Tuple, Interval(2要素) → 要素のフラットリスト。
+
+    一般行列（2行2列以上）は None を返す。
+    """
+    if isinstance(val, Matrix):
+        if val.cols == 1 or val.rows == 1:
+            return list(val)
+        return None
+    if isinstance(val, STuple):
+        return list(val)
+    if isinstance(val, Interval):
+        # (a, b) が開区間として解釈されたケース → 2要素ベクトルとみなす
+        return [val.start, val.end]
+    return None
+
+
+def _verify_matrix_vector(parsed_pred: list, parsed_gold: list) -> bool:
+    """行列ベクトル ↔ タプルの同一視フォールバック。
+
+    少なくとも片方が Matrix の場合に、要素を展開して比較する。
+    """
+    p_val = parsed_pred[0] if parsed_pred else None
+    g_val = parsed_gold[0] if parsed_gold else None
+    if p_val is None or g_val is None:
+        return False
+
+    # 少なくとも片方が Matrix でなければ発動しない
+    if not isinstance(p_val, Matrix) and not isinstance(g_val, Matrix):
+        return False
+
+    p_flat = _to_flat_vector(p_val)
+    g_flat = _to_flat_vector(g_val)
+
+    if p_flat is None or g_flat is None:
+        return False
+    if len(p_flat) != len(g_flat):
+        return False
+
+    return all(verify([a], [b]) for a, b in zip(p_flat, g_flat))
 
 
 # ---------------------------------------------------------------------------
@@ -951,6 +998,10 @@ def _verify_soft(prediction: str, gold: str) -> bool:
     parsed_pred = _extended_parse(prediction)
 
     if verify(parsed_gold, parsed_pred):
+        return True
+
+    # 行列ベクトル ↔ タプル同一視フォールバック
+    if _verify_matrix_vector(parsed_pred, parsed_gold):
         return True
 
     # 不等式 → 区間変換フォールバック
