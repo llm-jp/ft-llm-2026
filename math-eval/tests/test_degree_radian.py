@@ -27,6 +27,10 @@ from math_eval.main import parse_and_verify
         (r"$\frac{\pi}{4}$", r"$45^\circ$", True),
         # 両方度数法（直接一致）
         (r"$90^\circ$", r"$90^\circ$", True),
+        # \boxed{} 内の ^\circ
+        (r"\boxed{45^\circ}", r"$\frac{\pi}{4}$", True),
+        # \boxed{} 内の ^{\circ}
+        (r"\boxed{60^{\circ}}", r"$\frac{\pi}{3}$", True),
         # 不一致
         (r"$30^\circ$", r"$\frac{\pi}{4}$", False),
         (r"$45^\circ$", r"$\frac{\pi}{3}$", False),

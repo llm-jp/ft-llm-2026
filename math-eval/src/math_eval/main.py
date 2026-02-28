@@ -555,7 +555,7 @@ _BRACKET_SIZE_RE = re.compile(
 _LOG_NO_BASE_RE = re.compile(r"\\log(?![_a-zA-Z])")
 
 # 度数法の検出: ^\circ, ^{\circ}, ° (Unicode)
-_DEGREE_RE = re.compile(r"\^\{?\\circ\}?|°")
+_DEGREE_RE = re.compile(r"\^\{\\circ\}|\^\\circ|°")
 
 
 def _verify_degree_radian(prediction: str, gold: str) -> bool:
