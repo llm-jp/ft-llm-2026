@@ -244,9 +244,16 @@ def _verify_vector_fallback(prediction: str, gold: str) -> bool:
         return False
 
     # gold のベクトル名を pred の bare トークンにも適用（逆も同様）
+    # \vec{AB} の中の AB はマッチしない（負の後読みで保護）
+    # \frac{3 AB}{2} などの AB はマッチする
     # NOTE: re.sub の replacement では \v が VT に解釈されるため lambda を使う
     for name in sorted(all_vec_names, key=len, reverse=True):
-        bare_pattern = r"(?<![A-Za-z\\])" + re.escape(name) + r"(?![A-Za-z}])"
+        bare_pattern = (
+            r"(?<!\\vec\{)"  # \vec{...} 内を除外
+            + r"(?<![A-Za-z\\])"  # 前が英字や \ でない
+            + re.escape(name)
+            + r"(?![A-Za-z])"  # 後が英字でない
+        )
         vec_wrapped = f"\\vec{{{name}}}"
         if name in gold_vec_names:
             norm_pred = re.sub(bare_pattern, lambda _, w=vec_wrapped: w, norm_pred)
@@ -258,20 +265,10 @@ def _verify_vector_fallback(prediction: str, gold: str) -> bool:
     norm_pred = re.sub(r"\\vec\s*\{([A-Za-z])\}", r"\1", norm_pred)
 
     # 再パース・再比較
+    # \vec{AB} はパーサーが Symbol('vec{ab}') として1シンボルに扱う
     try:
         parsed_gold = _extended_parse(norm_gold)
         parsed_pred = _extended_parse(norm_pred)
-        if verify(parsed_gold, parsed_pred):
-            return True
-    except Exception:
-        pass
-
-    # フォールバック: 全ベクトル記号を除去して比較（単一文字ケース用）
-    stripped_gold = _VEC_CONTENT_RE.sub(r"\1", norm_gold)
-    stripped_pred = _VEC_CONTENT_RE.sub(r"\1", norm_pred)
-    try:
-        parsed_gold = _extended_parse(stripped_gold)
-        parsed_pred = _extended_parse(stripped_pred)
         return verify(parsed_gold, parsed_pred)
     except Exception:
         return False

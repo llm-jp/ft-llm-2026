@@ -139,6 +139,14 @@ class TestVectorUtilities:
         (r"$AB + CD$", r"$\overrightarrow{AB} + \overrightarrow{CD}$", True),
         # pred 側にベクトル記号、gold は bare（逆方向）
         (r"$\vec{AB}$", r"$AB$", True),
+        # \frac 内の bare ベクトルも1シンボル化
+        (
+            r"$\frac{AB}{2} + \frac{CD}{3}$",
+            r"$\frac{\overrightarrow{AB}}{2} + \frac{\overrightarrow{CD}}{3}$",
+            True,
+        ),
+        # スカラー倍の複数文字ベクトル
+        (r"$3AB$", r"$3\overrightarrow{AB}$", True),
         # --- 不一致 ---
         (r"$\vec{a}$", r"$b$", False),
         (r"$\overrightarrow{AB}$", r"$\overrightarrow{CD}$", False),
