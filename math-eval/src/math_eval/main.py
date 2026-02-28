@@ -162,6 +162,23 @@ def _normalize_prob_vars(expr: str) -> str:
     )
 
 
+# ベクトル・太字記号の除去: \vec{a} → a, \overrightarrow{AB} → AB, \boldsymbol{a} → a
+# ベクトル記号の有無で不一致になるのを防ぐ
+_VECTOR_NOTATION_RE = re.compile(
+    r"\\(?:vec|overrightarrow|boldsymbol|mathbf|bm)\s*"
+    r"(?:\{([^}]*)\}|([A-Za-z]))"
+)
+# Unicode の結合文字によるベクトル記号: a⃗ (U+20D7), a⃑ (U+20D1)
+_VECTOR_UNICODE_RE = re.compile(r"[\u20D7\u20D1]")
+
+
+def _strip_vector_notation(expr: str) -> str:
+    r"""ベクトル・太字記号 (\vec, \overrightarrow, \boldsymbol, \mathbf, \bm, Unicode) を除去する。"""
+    expr = _VECTOR_NOTATION_RE.sub(lambda m: m.group(1) or m.group(2), expr)
+    expr = _VECTOR_UNICODE_RE.sub("", expr)
+    return expr
+
+
 # ---------------------------------------------------------------------------
 # 小数近似比較: 小数 vs 分数/無理数 を小数の桁数に合わせて丸めて比較
 # ---------------------------------------------------------------------------
@@ -469,10 +486,12 @@ def _extended_parse(expr: str) -> list:
     - 論理記号の正規化: \vee, \lor, \wedge, \land → , (カンマ)
     - \pm/\mp expansion: expands to both + and - variants, returns as FiniteSet
     - 改行除去: 数式ブロック内の改行を空白に置換
+    - ベクトル記号除去: \vec, \overrightarrow, Unicode 結合矢印
     """
     # 改行を空白に置換（$...\n...\n...$ のようなケースに対応）
     expr = expr.replace("\n", " ")
     expr = _normalize_prob_vars(expr)
+    expr = _strip_vector_notation(expr)
     expr = _strip_bracket_sizing(expr)
     expr = _strip_latex_spacing(expr)
     expr = _merge_math_blocks(expr)
