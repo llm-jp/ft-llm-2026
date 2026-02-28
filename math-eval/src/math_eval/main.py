@@ -163,6 +163,89 @@ def _normalize_prob_vars(expr: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# 小数近似比較: 小数 vs 分数/無理数 を小数の桁数に合わせて丸めて比較
+# ---------------------------------------------------------------------------
+
+# 小数の桁数を数えるための正規表現
+_DECIMAL_NUM_RE = re.compile(r"-?\d+\.(\d+)")
+
+
+def _count_decimal_places(s: str) -> int | None:
+    """文字列中の小数の桁数を返す（複数ある場合は最小値）。"""
+    matches = _DECIMAL_NUM_RE.findall(s)
+    if not matches:
+        return None
+    return min(len(m) for m in matches)
+
+
+def _verify_numeric_approx(parsed_pred: list, parsed_gold: list) -> bool:
+    """小数の近似比較フォールバック。
+
+    片方が小数のとき、小数の桁数に合わせて丸めて比較する。
+    例: pred "0.333" vs gold "\\frac{1}{3}" → 小数3桁で丸め → 0.333 == 0.333 → True
+    """
+    try:
+        p_val = parsed_pred[0] if parsed_pred else None
+        g_val = parsed_gold[0] if parsed_gold else None
+        if p_val is None or g_val is None:
+            return False
+
+        # raw string から小数桁数を取得
+        p_raw = parsed_pred[1] if len(parsed_pred) > 1 else ""
+        g_raw = parsed_gold[1] if len(parsed_gold) > 1 else ""
+
+        p_dec = _count_decimal_places(str(p_raw))
+        g_dec = _count_decimal_places(str(g_raw))
+
+        # 少なくとも片方が小数でなければ対象外
+        if p_dec is None and g_dec is None:
+            return False
+
+        # 両方小数なら桁数が少ない方に合わせる
+        if p_dec is not None and g_dec is not None:
+            dec_places: int = min(p_dec, g_dec)
+        elif p_dec is not None:
+            dec_places = p_dec
+        else:
+            assert g_dec is not None  # 上の None チェックで保証済み
+            dec_places = g_dec
+
+        return _approx_equal_values(p_val, g_val, dec_places)
+    except Exception:
+        return False
+
+
+def _approx_equal_values(a, b, dec_places: int) -> bool:
+    """sympy オブジェクトを数値評価して小数 dec_places 桁で丸めて比較する。"""
+    from latex2sympy2_extended.sets import FiniteSet as L2SFiniteSet
+    from sympy import FiniteSet as SympyFiniteSet
+
+    # FiniteSet 同士: 要素数が同じなら値をソートして要素ごとに比較
+    if isinstance(a, (L2SFiniteSet, SympyFiniteSet)) and isinstance(
+        b, (L2SFiniteSet, SympyFiniteSet)
+    ):
+        try:
+            a_vals = sorted(float(x.evalf()) for x in a.args)
+            b_vals = sorted(float(x.evalf()) for x in b.args)
+        except (TypeError, ValueError):
+            return False
+        if len(a_vals) != len(b_vals):
+            return False
+        return all(
+            round(x, dec_places) == round(y, dec_places)
+            for x, y in zip(a_vals, b_vals)
+        )
+
+    # スカラー
+    try:
+        a_float = float(a.evalf())
+        b_float = float(b.evalf())
+        return round(a_float, dec_places) == round(b_float, dec_places)
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Dict 形式の正規化: {k1: v1, k2: v2, ...} → 方程式 / 値リスト
 # gold・prediction どちらにも適用可能
 # ---------------------------------------------------------------------------
@@ -817,25 +900,36 @@ def _verify_soft(prediction: str, gold: str) -> bool:
                 except Exception:
                     continue
 
+    # 小数近似フォールバック: 片方が小数のとき桁数に合わせて丸めて比較
+    if _verify_numeric_approx(parsed_pred, parsed_gold):
+        return True
+
     return False
 
 
 def _verify_strict(prediction: str, gold: str) -> bool:
     """Strict evaluation: no calculation allowed."""
+    parsed_pred = _extended_parse(prediction)
+    parsed_gold = _extended_parse(gold)
     try:
-        p = _extended_parse(prediction)[0]
-        q = _extended_parse(gold)[0]
-        return srepr(p) == srepr(q)
+        if srepr(parsed_pred[0]) == srepr(parsed_gold[0]):
+            return True
     except Exception:
         try:
             p_latex = prediction.strip().strip("$")
             q_latex = gold.strip().strip("$")
             p_sympy = latex2sympy(p_latex)
             q_sympy = latex2sympy(q_latex)
-            return srepr(p_sympy) == srepr(q_sympy)
+            if srepr(p_sympy) == srepr(q_sympy):
+                return True
         except Exception as e:
             err_console.log(f"Error occurred while verifying without calculation: {e}")
-            return False
+
+    # 小数近似フォールバック
+    if _verify_numeric_approx(parsed_pred, parsed_gold):
+        return True
+
+    return False
 
 
 def _verify_complex(prediction: str, gold: str) -> bool:
