@@ -162,21 +162,119 @@ def _normalize_prob_vars(expr: str) -> str:
     )
 
 
-# ベクトル・太字記号の除去: \vec{a} → a, \overrightarrow{AB} → AB, \boldsymbol{a} → a
-# ベクトル記号の有無で不一致になるのを防ぐ
+# ---------------------------------------------------------------------------
+# ベクトル記号の正規化
+# \overrightarrow, \boldsymbol, \mathbf, \bm, Unicode → \vec{...} に統一
+# ---------------------------------------------------------------------------
 _VECTOR_NOTATION_RE = re.compile(
     r"\\(?:vec|overrightarrow|boldsymbol|mathbf|bm)\s*"
     r"(?:\{([^}]*)\}|([A-Za-z]))"
 )
 # Unicode の結合文字によるベクトル記号: a⃗ (U+20D7), a⃑ (U+20D1)
-_VECTOR_UNICODE_RE = re.compile(r"[\u20D7\u20D1]")
+_VECTOR_UNICODE_RE = re.compile(r"([A-Za-z])[\u20D7\u20D1]")
+# 残留 Unicode 結合矢印のクリーンアップ用
+_VECTOR_UNICODE_CLEANUP_RE = re.compile(r"[\u20D7\u20D1]")
+# 正規化済み \vec{...} からトークン名を抽出
+_VEC_CONTENT_RE = re.compile(r"\\vec\s*\{([^}]+)\}")
+
+
+def _normalize_vector_notation(expr: str) -> str:
+    r"""全ベクトルバリアントを \vec{...} に統一する。
+
+    \overrightarrow{AB} → \vec{AB}, \boldsymbol{a} → \vec{a},
+    \mathbf{F} → \vec{F}, \bm{v} → \vec{v}, a⃗ → \vec{a}
+    """
+    # LaTeX コマンド → \vec{...}
+    expr = _VECTOR_NOTATION_RE.sub(
+        lambda m: f"\\vec{{{m.group(1) or m.group(2)}}}", expr
+    )
+    # Unicode 結合矢印 → \vec{x}
+    expr = _VECTOR_UNICODE_RE.sub(r"\\vec{\1}", expr)
+    # 残留 Unicode 結合矢印のクリーンアップ
+    expr = _VECTOR_UNICODE_CLEANUP_RE.sub("", expr)
+    return expr
 
 
 def _strip_vector_notation(expr: str) -> str:
-    r"""ベクトル・太字記号 (\vec, \overrightarrow, \boldsymbol, \mathbf, \bm, Unicode) を除去する。"""
-    expr = _VECTOR_NOTATION_RE.sub(lambda m: m.group(1) or m.group(2), expr)
-    expr = _VECTOR_UNICODE_RE.sub("", expr)
+    r"""ベクトル記号を正規化後、単一文字のみ除去する。
+
+    単一文字: \vec{a} → a（パーサーに安全）
+    複数文字: \vec{AB} → そのまま残す（AB が A*B と誤解されるのを防ぐ）
+    """
+    expr = _normalize_vector_notation(expr)
+    # 単一文字ベクトルのみ除去
+    expr = re.sub(r"\\vec\s*\{([A-Za-z])\}", r"\1", expr)
     return expr
+
+
+def _has_vector_notation(expr: str) -> bool:
+    """式にベクトル記号が含まれるかチェック。"""
+    return bool(_VECTOR_NOTATION_RE.search(expr)) or bool(
+        re.search(r"[\u20D7\u20D1]", expr)
+    )
+
+
+def _extract_vector_names(expr: str) -> set[str]:
+    r"""正規化済み式から \vec{...} のトークン名を抽出する。"""
+    return set(_VEC_CONTENT_RE.findall(expr))
+
+
+def _verify_vector_fallback(prediction: str, gold: str) -> bool:
+    r"""ベクトル記号のフォールバック。
+
+    gold/pred にベクトル記号がある場合、記法を統一して再比較する。
+    - 全バリアント → \vec{...} に正規化
+    - gold のベクトルトークン名を pred の bare トークンにも適用（逆も同様）
+    - 単一文字: \vec{a} → a（除去）
+    - 複数文字: \vec{AB} → そのまま保持してパースに渡す
+    """
+    if not _has_vector_notation(prediction) and not _has_vector_notation(gold):
+        return False
+
+    # 全バリアントを \vec{...} に正規化
+    norm_gold = _normalize_vector_notation(gold)
+    norm_pred = _normalize_vector_notation(prediction)
+
+    # ベクトルトークン名を抽出
+    gold_vec_names = _extract_vector_names(norm_gold)
+    pred_vec_names = _extract_vector_names(norm_pred)
+    all_vec_names = gold_vec_names | pred_vec_names
+
+    if not all_vec_names:
+        return False
+
+    # gold のベクトル名を pred の bare トークンにも適用（逆も同様）
+    # NOTE: re.sub の replacement では \v が VT に解釈されるため lambda を使う
+    for name in sorted(all_vec_names, key=len, reverse=True):
+        bare_pattern = r"(?<![A-Za-z\\])" + re.escape(name) + r"(?![A-Za-z}])"
+        vec_wrapped = f"\\vec{{{name}}}"
+        if name in gold_vec_names:
+            norm_pred = re.sub(bare_pattern, lambda _, w=vec_wrapped: w, norm_pred)
+        if name in pred_vec_names:
+            norm_gold = re.sub(bare_pattern, lambda _, w=vec_wrapped: w, norm_gold)
+
+    # 単一文字ベクトルを除去（両側を統一してから除去）
+    norm_gold = re.sub(r"\\vec\s*\{([A-Za-z])\}", r"\1", norm_gold)
+    norm_pred = re.sub(r"\\vec\s*\{([A-Za-z])\}", r"\1", norm_pred)
+
+    # 再パース・再比較
+    try:
+        parsed_gold = _extended_parse(norm_gold)
+        parsed_pred = _extended_parse(norm_pred)
+        if verify(parsed_gold, parsed_pred):
+            return True
+    except Exception:
+        pass
+
+    # フォールバック: 全ベクトル記号を除去して比較（単一文字ケース用）
+    stripped_gold = _VEC_CONTENT_RE.sub(r"\1", norm_gold)
+    stripped_pred = _VEC_CONTENT_RE.sub(r"\1", norm_pred)
+    try:
+        parsed_gold = _extended_parse(stripped_gold)
+        parsed_pred = _extended_parse(stripped_pred)
+        return verify(parsed_gold, parsed_pred)
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -486,12 +584,12 @@ def _extended_parse(expr: str) -> list:
     - 論理記号の正規化: \vee, \lor, \wedge, \land → , (カンマ)
     - \pm/\mp expansion: expands to both + and - variants, returns as FiniteSet
     - 改行除去: 数式ブロック内の改行を空白に置換
-    - ベクトル記号除去: \vec, \overrightarrow, Unicode 結合矢印
+    - ベクトル記号正規化: 全バリアント → \vec{...}、単一文字のみ除去
     """
     # 改行を空白に置換（$...\n...\n...$ のようなケースに対応）
     expr = expr.replace("\n", " ")
     expr = _normalize_prob_vars(expr)
-    expr = _strip_vector_notation(expr)
+    expr = _strip_vector_notation(expr)  # 単一文字は除去、複数文字は \vec{AB} のまま保持
     expr = _strip_bracket_sizing(expr)
     expr = _strip_latex_spacing(expr)
     expr = _merge_math_blocks(expr)
@@ -918,6 +1016,10 @@ def _verify_soft(prediction: str, gold: str) -> bool:
                         return True
                 except Exception:
                     continue
+
+    # ベクトル記号フォールバック: gold のベクトルトークンを pred にも適用して再比較
+    if _verify_vector_fallback(prediction, gold):
+        return True
 
     # 小数近似フォールバック: 片方が小数のとき桁数に合わせて丸めて比較
     if _verify_numeric_approx(parsed_pred, parsed_gold):
