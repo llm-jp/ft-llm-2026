@@ -468,7 +468,8 @@ def _parse_dict_notation(expr: str) -> list[str] | None:
         if not key or not value:
             return None
         pairs.append((key, value))
-    if not pairs:
+    if len(pairs) < 2:
+        # 単一の key:value は比（2:3 など）と区別できないため dict とみなさない
         return None
 
     candidates: list[str] = []
@@ -552,6 +553,41 @@ _BRACKET_SIZE_RE = re.compile(
 # \log (底なし) ↔ \ln フォールバック用正規表現
 # \log_2, \log_{10} 等は底が明示されているので対象外
 _LOG_NO_BASE_RE = re.compile(r"\\log(?![_a-zA-Z])")
+
+# 度数法の検出: ^\circ, ^{\circ}, ° (Unicode)
+_DEGREE_RE = re.compile(r"\^\{?\\circ\}?|°")
+
+
+def _verify_degree_radian(prediction: str, gold: str) -> bool:
+    r"""度数法 → ラジアン変換フォールバック（soft 限定）。
+
+    ^\circ や ° を \cdot\frac{\pi}{180} に置換してラジアンに変換し、再比較する。
+    ラジアン → 度数法への変換は行わない。
+    """
+    p_has_deg = bool(_DEGREE_RE.search(prediction))
+    g_has_deg = bool(_DEGREE_RE.search(gold))
+
+    if not p_has_deg and not g_has_deg:
+        return False
+
+    def _deg_to_rad(expr: str) -> str:
+        return _DEGREE_RE.sub(r"\\cdot\\frac{\\pi}{180}", expr)
+
+    try:
+        if p_has_deg:
+            parsed_rad = _extended_parse(_deg_to_rad(prediction))
+            parsed_gold = _extended_parse(gold)
+            if verify(parsed_rad, parsed_gold):
+                return True
+        if g_has_deg:
+            parsed_pred = _extended_parse(prediction)
+            parsed_rad = _extended_parse(_deg_to_rad(gold))
+            if verify(parsed_pred, parsed_rad):
+                return True
+    except Exception:
+        pass
+
+    return False
 
 
 def _strip_bracket_sizing(expr: str) -> str:
@@ -1067,6 +1103,10 @@ def _verify_soft(prediction: str, gold: str) -> bool:
 
     # ベクトル記号フォールバック: gold のベクトルトークンを pred にも適用して再比較
     if _verify_vector_fallback(prediction, gold):
+        return True
+
+    # 度数法 → ラジアン変換フォールバック
+    if _verify_degree_radian(prediction, gold):
         return True
 
     # 小数近似フォールバック: 片方が小数のとき桁数に合わせて丸めて比較
