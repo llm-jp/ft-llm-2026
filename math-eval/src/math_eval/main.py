@@ -302,7 +302,10 @@ def _extended_parse(expr: str) -> list:
     - 不等号の正規化: \geqq → \geq, \leqq → \leq 等
     - 論理記号の正規化: \vee, \lor, \wedge, \land → , (カンマ)
     - \pm/\mp expansion: expands to both + and - variants, returns as FiniteSet
+    - 改行除去: 数式ブロック内の改行を空白に置換
     """
+    # 改行を空白に置換（$...\n...\n...$ のようなケースに対応）
+    expr = expr.replace("\n", " ")
     expr = _normalize_prob_vars(expr)
     expr = _strip_bracket_sizing(expr)
     expr = _strip_latex_spacing(expr)
