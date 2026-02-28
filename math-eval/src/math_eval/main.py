@@ -162,6 +162,89 @@ def _normalize_prob_vars(expr: str) -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# Dict 形式の正規化: {k1: v1, k2: v2, ...} → 方程式 / 値リスト
+# gold・prediction どちらにも適用可能
+# ---------------------------------------------------------------------------
+
+
+def _parse_dict_notation(expr: str) -> list[str] | None:
+    r"""Dict 風表記を正規化された数式文字列に変換する。
+
+    {x: 1, y: 2}      → ["$x = 1, y = 2$"]
+    {0: 1/28, 1: 3/7}  → ["$\frac{1}{28}, \frac{3}{7}$"]  (数値キーは値のみ)
+
+    対応しないフォーマットの場合は None を返す。
+    """
+    s = expr.strip()
+    # 数式デリミタを除去
+    for start, end in [("$$", "$$"), (r"\[", r"\]"), (r"\(", r"\)")]:
+        if s.startswith(start) and s.endswith(end):
+            s = s[len(start) : -len(end)].strip()
+            break
+    else:
+        # $ は 1 文字なので別処理
+        if len(s) >= 2 and s[0] == "$" and s[-1] == "$":
+            s = s[1:-1].strip()
+    # \boxed{...} を除去
+    if s.startswith(r"\boxed{") and s.endswith("}"):
+        s = s[7:-1].strip()
+
+    # 外側の {} があれば除去（なくても dict 風パターンとして続行）
+    if s.startswith("{") and s.endswith("}"):
+        s = s[1:-1].strip()
+    elif s.startswith(r"\{") and s.endswith(r"\}"):
+        s = s[2:-2].strip()
+
+    # カンマで分割（{} のネストを考慮）
+    parts: list[str] = []
+    depth = 0
+    current = ""
+    for ch in s:
+        if ch == "{":
+            depth += 1
+            current += ch
+        elif ch == "}":
+            depth -= 1
+            current += ch
+        elif ch == "," and depth == 0:
+            parts.append(current.strip())
+            current = ""
+        else:
+            current += ch
+    if current.strip():
+        parts.append(current.strip())
+
+    # 各パートを key: value に分割（最初の : で分割）
+    pairs: list[tuple[str, str]] = []
+    for part in parts:
+        colon_idx = part.find(":")
+        if colon_idx == -1:
+            return None
+        key = part[:colon_idx].strip()
+        value = part[colon_idx + 1 :].strip()
+        if not key or not value:
+            return None
+        pairs.append((key, value))
+    if not pairs:
+        return None
+
+    candidates: list[str] = []
+
+    # 全キーが数値の場合は値のみの候補を追加
+    all_numeric = all(k.lstrip("-").replace(".", "").isdigit() for k, _ in pairs)
+    if all_numeric:
+        val_str = ", ".join(v for _, v in pairs)
+        candidates.append(f"${val_str}$")
+    else:
+        # 変数キーの場合は方程式形式
+        eq_str = ", ".join(f"{k} = {v}" for k, v in pairs)
+        candidates.append(f"${eq_str}$")
+
+    return candidates
+
+
+
 # 不等号の正規化: 日本式の二重線 (\geqq 等) を標準形 (\geq 等) に統一
 _INEQUALITY_NORMALIZE_MAP = {
     r"\geqq": r"\geq",
@@ -706,6 +789,33 @@ def _verify_soft(prediction: str, gold: str) -> bool:
                     return True
             except Exception:
                 pass
+
+    # Dict 形式フォールバック: {k: v, ...} を正規化して再検証（gold・pred 両方）
+    gold_dict = _parse_dict_notation(gold)
+    pred_dict = _parse_dict_notation(prediction)
+    if gold_dict is not None:
+        for candidate in gold_dict:
+            try:
+                if verify(_extended_parse(candidate), parsed_pred):
+                    return True
+            except Exception:
+                continue
+    if pred_dict is not None:
+        for candidate in pred_dict:
+            try:
+                if verify(parsed_gold, _extended_parse(candidate)):
+                    return True
+            except Exception:
+                continue
+    # 両方 dict の場合は正規化同士で比較
+    if gold_dict is not None and pred_dict is not None:
+        for g_cand in gold_dict:
+            for p_cand in pred_dict:
+                try:
+                    if verify(_extended_parse(g_cand), _extended_parse(p_cand)):
+                        return True
+                except Exception:
+                    continue
 
     return False
 
