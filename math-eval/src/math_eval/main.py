@@ -512,8 +512,9 @@ def _normalize_inequalities(expr: str) -> str:
 # latex2sympy2_extended がこれらをパースできないため、カンマ区切りに変換する
 _LOGICAL_CONNECTIVE_RE = re.compile(
     r"\\(?:vee|lor|wedge|land)(?![a-zA-Z])"
-    r"|\\text\s*\{(?:または|かつ|or|and)\}"
-    r"|\b(?:or|and)\b"
+    r"|\\(?:text|mathrm|textbf|textit)\s*\{\s*(?:または|かつ|or|and)\s*\}"
+    r"|\b(?:or|and)\b",
+    re.IGNORECASE,
 )
 
 
@@ -632,9 +633,11 @@ _MATH_BLOCK_SEP_RE = re.compile(
     r"[.,、，;]"                          # 句読点・カンマ・セミコロン
     r"|または|かつ"                      # 日本語接続詞
     r"|\bor\b|\band\b"                   # 英語接続詞
+    r"|\\(?:text|mathrm|textbf|textit)\s*\{\s*(?:または|かつ|or|and)\s*\}"
     r")?"                               # 区切りは省略可 (空白のみ)
     r"\s*"                              # 空白
-    r"(?:\$\$|(?<!\$)\$(?!\$)|\\\[|\\\()"  # 次ブロックの開きデリミタ
+    r"(?:\$\$|(?<!\$)\$(?!\$)|\\\[|\\\()",  # 次ブロックの開きデリミタ
+    re.IGNORECASE,
 )
 
 
