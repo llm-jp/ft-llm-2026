@@ -709,6 +709,40 @@ def _merge_math_blocks(text: str) -> str:
     return _MATH_BLOCK_SEP_RE.sub(", ", text)
 
 
+# ネストされたデリミタの正規化: $\(...\)$ → $...$, $\[...\]$ → $...$
+_NESTED_DELIM_RE = re.compile(
+    r"^(\$\$|\$)"  # 外側の開きデリミタ
+    r"\s*\\[(\[]"  # 内側の開きデリミタ (\( or \[)
+    r"\s*"
+    r"(.*?)"  # 中身
+    r"\s*\\[)\]]"  # 内側の閉じデリミタ (\) or \])
+    r"\s*(\$\$|\$)$",  # 外側の閉じデリミタ
+    re.DOTALL,
+)
+
+# \displaystyle, \textstyle 等の表示指定コマンド除去
+_DISPLAY_STYLE_RE = re.compile(
+    r"\\(?:displaystyle|textstyle|scriptstyle|scriptscriptstyle)(?:\s|(?=[\\{]))"
+)
+
+
+def _strip_nested_delimiters(expr: str) -> str:
+    r"""ネストされたデリミタを正規化する。
+
+    $\(\frac{1}{2}\)$ → $\frac{1}{2}$
+    $\[\frac{1}{2}\]$ → $\frac{1}{2}$
+    """
+    m = _NESTED_DELIM_RE.match(expr)
+    if m:
+        return m.group(1) + m.group(2) + m.group(3)
+    return expr
+
+
+def _strip_display_style(expr: str) -> str:
+    r"""\displaystyle, \textstyle 等の表示指定コマンドを除去する。"""
+    return _DISPLAY_STYLE_RE.sub("", expr)
+
+
 def _extended_parse(expr: str) -> list:
     r"""Extended parse with additional preprocessing.
 
@@ -722,12 +756,18 @@ def _extended_parse(expr: str) -> list:
     - \pm/\mp expansion: expands to both + and - variants, returns as FiniteSet
     - 改行除去: 数式ブロック内の改行を空白に置換
     - ベクトル記号正規化: 全バリアント → \vec{...}、単一文字のみ除去
+    - ネストデリミタ正規化: $\(...\)$ → $...$
+    - 表示指定除去: \displaystyle, \textstyle 等
     - 小数 → 分数 変換: 0.625 → \frac{625}{1000}
     """
     # 改行を空白に置換（$...\n...\n...$ のようなケースに対応）
     expr = expr.replace("\n", " ")
     # \varnothing → \emptyset 正規化（パーサが \varnothing を Symbol にしてしまうため）
     expr = expr.replace(r"\varnothing", r"\emptyset")
+    # ネストデリミタ正規化（_merge_math_blocks の前に実行する必要あり）
+    expr = _strip_nested_delimiters(expr)
+    # \displaystyle 等の表示指定コマンド除去
+    expr = _strip_display_style(expr)
     expr = _normalize_prob_vars(expr)
     expr = _strip_vector_notation(expr)  # 単一文字は除去、複数文字は \vec{AB} のまま保持
     expr = _strip_bracket_sizing(expr)
@@ -1429,23 +1469,59 @@ def _verify_single(
         raise ValueError(f"Unknown evaluation method: {evaluation_method}")
 
 
+# 先頭のノイズトークン（句読点、日本語テキスト、マークダウン記法等）にマッチする正規表現。
+# 数式の開始文字（$, \, 数字, 英字, 括弧, 符号）以外を先頭から除去する。
+_NOISE_PREFIX_RE = re.compile(r"^[^\$\\0-9a-zA-Z({[\-+]+")
+
+# デリミタ内のノイズ除去用: $<noise><math>$ → $<math>$
+_DELIMITED_NOISE_RE = re.compile(
+    r"^(\$\$|\$|\\[(\[])"  # 開きデリミタ
+    r"([^\$\\0-9a-zA-Z({[\-+]+)"  # ノイズ部分
+    r"(.+)"  # 残りの式 + 閉じデリミタ
+)
+
+
+def _strip_noise_prefix(expr: str) -> str:
+    """先頭のノイズトークンを除去する。
+
+    デリミタなし: ``。 \\frac{1}{2}`` → ``\\frac{1}{2}``
+    デリミタあり: ``$答え：\\frac{1}{2}$`` → ``$\\frac{1}{2}$``
+    """
+    # デリミタ内のノイズ除去
+    m = _DELIMITED_NOISE_RE.match(expr)
+    if m:
+        return m.group(1) + m.group(3)
+    # デリミタ外のノイズ除去
+    return _NOISE_PREFIX_RE.sub("", expr)
+
+
 def _verify_with_delimiter_fallback(
     prediction: str, gold: str, evaluation_method: Optional[EvaluationMethod]
 ) -> bool:
-    """通常の評価を行い、False の場合は prediction を $...$ で囲んで再評価する。
+    """通常の評価を行い、False の場合はフォールバックで再評価する。
 
-    prediction にデリミタがない場合、parse が数値抽出のみとなり
-    LaTeX 式が正しくパースされないことがある。フォールバックとして
-    $...$ で囲むことで LaTeX パースを試みる。
+    フォールバック:
+    1. prediction にデリミタがない場合、$...$ で囲んで LaTeX パースを試みる。
+    2. 先頭のノイズトークン（。, 答え: 等）を除去して再評価する。
     """
     if _verify_single(prediction, gold, evaluation_method):
         return True
 
     wrapped_prediction = _ensure_math_delimiters(prediction)
-    if wrapped_prediction == prediction:
-        return False  # 既にデリミタありなので再評価不要
+    if wrapped_prediction != prediction:
+        if _verify_single(wrapped_prediction, gold, evaluation_method):
+            return True
 
-    return _verify_single(wrapped_prediction, gold, evaluation_method)
+    # ノイズ除去フォールバック
+    stripped = _strip_noise_prefix(prediction)
+    if stripped and stripped != prediction:
+        if _verify_single(stripped, gold, evaluation_method):
+            return True
+        wrapped_stripped = _ensure_math_delimiters(stripped)
+        if wrapped_stripped != stripped:
+            return _verify_single(wrapped_stripped, gold, evaluation_method)
+
+    return False
 
 
 def parse_and_verify(
