@@ -555,6 +555,29 @@ _BRACKET_SIZE_RE = re.compile(
 # \log_2, \log_{10} 等は底が明示されているので対象外
 _LOG_NO_BASE_RE = re.compile(r"\\log(?![_a-zA-Z])")
 
+# ---------------------------------------------------------------------------
+# 小数 → 分数 変換: 0.625 → \frac{625}{1000} (パーサが Rational として扱う)
+# ---------------------------------------------------------------------------
+_DECIMAL_RE = re.compile(r"(?<!\d)(\d+)\.(\d+)(?!\d)")
+
+
+def _decimal_to_fraction(expr: str) -> str:
+    r"""小数を分数に変換する。0.625 → \frac{625}{1000} 等。
+
+    LaTeX パーサが Float ではなく Rational として解釈するようにする。
+    \frac{0.625x}{2} や \sin(0.5) 内の小数にも対応。
+    """
+
+    def _replace(m: re.Match) -> str:
+        int_part = m.group(1)
+        dec_part = m.group(2)
+        numerator = int(int_part + dec_part)
+        denominator = 10 ** len(dec_part)
+        return rf"\frac{{{numerator}}}{{{denominator}}}"
+
+    return _DECIMAL_RE.sub(_replace, expr)
+
+
 # 度数法の検出: ^\circ, ^{\circ}, ° (Unicode)
 _DEGREE_RE = re.compile(r"\^\{\\circ\}|\^\\circ|°")
 
@@ -668,6 +691,7 @@ def _extended_parse(expr: str) -> list:
     - \pm/\mp expansion: expands to both + and - variants, returns as FiniteSet
     - 改行除去: 数式ブロック内の改行を空白に置換
     - ベクトル記号正規化: 全バリアント → \vec{...}、単一文字のみ除去
+    - 小数 → 分数 変換: 0.625 → \frac{625}{1000}
     """
     # 改行を空白に置換（$...\n...\n...$ のようなケースに対応）
     expr = expr.replace("\n", " ")
@@ -1116,7 +1140,30 @@ def _verify_soft(prediction: str, gold: str) -> bool:
     if _verify_numeric_approx(parsed_pred, parsed_gold):
         return True
 
+    # 小数 → 分数変換フォールバック: 0.625x → \frac{5}{8}x 等
+    if _verify_decimal_fraction(prediction, gold):
+        return True
+
     return False
+
+
+def _verify_decimal_fraction(prediction: str, gold: str) -> bool:
+    r"""小数を分数に変換して再比較するフォールバック。
+
+    0.625x → \frac{625}{1000}x (= \frac{5}{8}x) のように変換し、
+    \frac{} 内や \sin() 内の小数にも対応する。
+    """
+    pred_converted = _decimal_to_fraction(prediction)
+    gold_converted = _decimal_to_fraction(gold)
+    # 変換が発生しなければスキップ
+    if pred_converted == prediction and gold_converted == gold:
+        return False
+    try:
+        parsed_p = _extended_parse(pred_converted)
+        parsed_g = _extended_parse(gold_converted)
+        return verify(parsed_p, parsed_g)
+    except Exception:
+        return False
 
 
 def _verify_strict(prediction: str, gold: str) -> bool:
@@ -1139,6 +1186,10 @@ def _verify_strict(prediction: str, gold: str) -> bool:
 
     # 小数近似フォールバック
     if _verify_numeric_approx(parsed_pred, parsed_gold):
+        return True
+
+    # 小数 → 分数変換フォールバック
+    if _verify_decimal_fraction(prediction, gold):
         return True
 
     return False
