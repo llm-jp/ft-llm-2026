@@ -556,6 +556,37 @@ _BRACKET_SIZE_RE = re.compile(
 _LOG_NO_BASE_RE = re.compile(r"\\log(?![_a-zA-Z])")
 
 # ---------------------------------------------------------------------------
+# 裸の数学キーワード → LaTeX コマンド変換
+# pi → \pi, sin → \sin, cos → \cos, tan → \tan, log → \log, ln → \ln, exp → \exp
+# ---------------------------------------------------------------------------
+_BARE_MATH_KEYWORDS: dict[str, str] = {
+    "pi": r"\pi",
+    "sin": r"\sin",
+    "cos": r"\cos",
+    "tan": r"\tan",
+    "log": r"\log",
+    "ln": r"\ln",
+    "exp": r"\exp",
+    "sqrt": r"\sqrt",
+}
+# 長いキーワードから先にマッチさせる（sqrt が sq + rt に分割されないよう）
+_BARE_MATH_RE = re.compile(
+    r"(?<![a-zA-Z\\])"
+    r"(" + "|".join(sorted(_BARE_MATH_KEYWORDS.keys(), key=len, reverse=True)) + r")"
+    r"(?![a-zA-Z])"
+)
+
+
+def _bare_keywords_to_latex(expr: str) -> str:
+    r"""裸の数学キーワードを LaTeX コマンドに変換する。
+
+    pi → \pi, sin → \sin, cos → \cos 等。
+    2pi → 2\pi, sin(x) → \sin(x) のように文脈を保持する。
+    """
+    return _BARE_MATH_RE.sub(lambda m: _BARE_MATH_KEYWORDS[m.group(1)], expr)
+
+
+# ---------------------------------------------------------------------------
 # 小数 → 分数 変換: 0.625 → \frac{625}{1000} (パーサが Rational として扱う)
 # ---------------------------------------------------------------------------
 _DECIMAL_RE = re.compile(r"(?<!\d)(\d+)\.(\d+)(?!\d)")
@@ -1144,7 +1175,30 @@ def _verify_soft(prediction: str, gold: str) -> bool:
     if _verify_decimal_fraction(prediction, gold):
         return True
 
+    # 裸の数学キーワードフォールバック: pi → \pi, sin → \sin 等
+    if _verify_bare_keywords(prediction, gold):
+        return True
+
     return False
+
+
+def _verify_bare_keywords(prediction: str, gold: str) -> bool:
+    r"""裸の数学キーワードを LaTeX コマンドに変換して再比較するフォールバック。
+
+    pi → \pi, sin → \sin, cos → \cos 等。
+    まず通常パース（pi = p*i）で比較し、一致しなかった場合に適用される。
+    """
+    pred_converted = _bare_keywords_to_latex(prediction)
+    gold_converted = _bare_keywords_to_latex(gold)
+    # 変換が発生しなければスキップ
+    if pred_converted == prediction and gold_converted == gold:
+        return False
+    try:
+        parsed_p = _extended_parse(pred_converted)
+        parsed_g = _extended_parse(gold_converted)
+        return verify(parsed_p, parsed_g)
+    except Exception:
+        return False
 
 
 def _verify_decimal_fraction(prediction: str, gold: str) -> bool:
@@ -1190,6 +1244,10 @@ def _verify_strict(prediction: str, gold: str) -> bool:
 
     # 小数 → 分数変換フォールバック
     if _verify_decimal_fraction(prediction, gold):
+        return True
+
+    # 裸の数学キーワードフォールバック
+    if _verify_bare_keywords(prediction, gold):
         return True
 
     return False
