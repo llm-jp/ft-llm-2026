@@ -726,6 +726,8 @@ def _extended_parse(expr: str) -> list:
     """
     # 改行を空白に置換（$...\n...\n...$ のようなケースに対応）
     expr = expr.replace("\n", " ")
+    # \varnothing → \emptyset 正規化（パーサが \varnothing を Symbol にしてしまうため）
+    expr = expr.replace(r"\varnothing", r"\emptyset")
     expr = _normalize_prob_vars(expr)
     expr = _strip_vector_notation(expr)  # 単一文字は除去、複数文字は \vec{AB} のまま保持
     expr = _strip_bracket_sizing(expr)
@@ -736,7 +738,15 @@ def _extended_parse(expr: str) -> list:
     expanded_exprs = _expand_pm_mp(expr)
 
     if len(expanded_exprs) == 1:
-        return parse(expr, extraction_config=_EXTRACTION_CONFIG)
+        result = parse(expr, extraction_config=_EXTRACTION_CONFIG)
+        # Spurious EmptySet 修正:
+        # (symbolic_fraction, symbolic_fraction) が Interval → EmptySet に誤解釈されるケースを
+        # Tuple として再パースする
+        if _is_spurious_emptyset(result, expr):
+            tuple_result = _try_reparse_as_tuple(expr)
+            if tuple_result is not None:
+                return tuple_result
+        return result
 
     all_values = set()
     all_equalities = []
@@ -1086,6 +1096,100 @@ def _verify_interval(parsed_gold: list, parsed_pred: list) -> bool:
     return False
 
 
+def _try_reparse_as_tuple(expr: str) -> list | None:
+    """EmptySet に誤パースされた式をタプルとして再パースする。
+
+    (expr1, expr2) のようなカンマ区切りの式を個別にパースして Tuple にまとめる。
+    """
+    # 数式デリミタを除去して内部を取得
+    inner = expr.strip()
+    for prefix, suffix in [
+        (r"\[", r"\]"),
+        (r"\(", r"\)"),
+        ("$$", "$$"),
+        ("$", "$"),
+    ]:
+        if inner.startswith(prefix) and inner.endswith(suffix):
+            inner = inner[len(prefix) : -len(suffix)].strip()
+            break
+
+    # \boxed{...} を除去
+    boxed_m = re.match(r"\\boxed\s*\{(.*)\}\s*$", inner, re.DOTALL)
+    if boxed_m:
+        inner = boxed_m.group(1).strip()
+
+    # Q(...) のような関数呼び出しの外側を除去
+    func_m = re.match(r"[A-Za-z]+\s*\((.*)\)\s*$", inner, re.DOTALL)
+    if func_m:
+        inner = func_m.group(1).strip()
+    else:
+        # \left( ... \right) を除去
+        paren_m = re.match(
+            r"(?:\\left\s*)?[(\[]\s*(.*?)\s*(?:\\right\s*)?[)\]]\s*$",
+            inner,
+            re.DOTALL,
+        )
+        if paren_m:
+            inner = paren_m.group(1).strip()
+
+    if "," not in inner:
+        return None
+
+    # カンマで分割（ネストを考慮した簡易分割）
+    parts = _split_top_level_commas(inner)
+    if len(parts) < 2:
+        return None
+
+    parsed_parts = []
+    for part in parts:
+        part_expr = f"${part.strip()}$"
+        try:
+            p = parse(part_expr, extraction_config=_EXTRACTION_CONFIG)
+            if p and not isinstance(p[0], str):
+                parsed_parts.append(p[0])
+            else:
+                return None
+        except Exception:
+            return None
+
+    return [STuple(*parsed_parts), inner]
+
+
+def _split_top_level_commas(s: str) -> list[str]:
+    """ネストされた括弧・ブレースを考慮してトップレベルのカンマで分割する。"""
+    parts: list[str] = []
+    depth = 0
+    current: list[str] = []
+    for ch in s:
+        if ch in "({[":
+            depth += 1
+        elif ch in ")}]":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+            continue
+        current.append(ch)
+    parts.append("".join(current))
+    return parts
+
+
+def _is_spurious_emptyset(parsed: list, raw: str) -> bool:
+    """パーサが誤って EmptySet を生成したかどうかを判定する。
+
+    (a, a) のようなタプル/座標が Interval → EmptySet と誤解釈されるケースを検出。
+    raw 文字列に明示的な空集合記号がなければ誤解釈とみなす。
+    """
+    if not parsed:
+        return False
+    if parsed[0] is not S.EmptySet:
+        return False
+    # 明示的な空集合記号が含まれていれば正当な EmptySet
+    if re.search(r"\\(?:emptyset|varnothing|empty)\b", raw):
+        return False
+    return True
+
+
 def _verify_soft(prediction: str, gold: str) -> bool:
     """Soft evaluation: allows calculation, with bracket variant fallback."""
     parsed_gold = _extended_parse(gold)
@@ -1224,6 +1328,7 @@ def _verify_strict(prediction: str, gold: str) -> bool:
     """Strict evaluation: no calculation allowed."""
     parsed_pred = _extended_parse(prediction)
     parsed_gold = _extended_parse(gold)
+
     try:
         if srepr(parsed_pred[0]) == srepr(parsed_gold[0]):
             return True
