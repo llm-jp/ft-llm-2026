@@ -1,0 +1,17 @@
+{
+  "overall_accuracy": 0.5,
+  "category_accuracies": {
+    "小学1年生": 0.5,
+    "小学2年生": 0.5
+  },
+  "detailed_results": {
+    "1": true,
+    "2": false,
+    "3": true,
+    "4": false,
+    "5": false,
+    "6": false,
+    "7": true,
+    "8": true
+  }
+}
