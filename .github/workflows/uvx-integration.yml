@@ -1,0 +1,59 @@
+name: uvx Integration Test
+
+# math-eval が uvx --from "git+https://..." 経由でインストール・実行できることを検証する。
+# GitHub Actions 上ではコミット SHA が GitHub に存在するため、
+# git+https://...@{sha} でそのコミットをインストールできる。
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+  push:
+    branches:
+      - main
+
+jobs:
+  uvx-integration:
+    name: uvx install and run (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run math-eval via uvx from current commit
+        run: |
+          uvx --from "git+https://github.com/${{ github.repository }}@${{ github.sha }}#subdirectory=math-eval" \
+            math-eval \
+            math-eval/examples/prediction.jsonl \
+            math-eval/examples/gold.jsonl \
+            -o result.json
+
+      - name: Compare output against expected result
+        run: |
+          python3 -c "
+          import json, sys
+
+          with open('result.json') as f:
+              actual = json.load(f)
+          with open('math-eval/examples/expected.json') as f:
+              expected = json.load(f)
+
+          if actual != expected:
+              print('FAIL: output does not match expected')
+              print('Expected:', json.dumps(expected, indent=2))
+              print('Actual:  ', json.dumps(actual, indent=2))
+              sys.exit(1)
+
+          print('OK: uvx integration test passed')
+          "
