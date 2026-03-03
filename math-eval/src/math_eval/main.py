@@ -1340,7 +1340,7 @@ def _verify_bare_keywords(prediction: str, gold: str) -> bool:
     try:
         parsed_p = _extended_parse(pred_converted)
         parsed_g = _extended_parse(gold_converted)
-        return verify(parsed_p, parsed_g)
+        return verify(parsed_g, parsed_p)
     except Exception:
         return False
 
