@@ -10,6 +10,10 @@ from math_eval.main import EvaluationMethod
         (r"$x+1$", r"$1+x$", "soft", True),
         (r"$x^2$", r"$x * x$", "strict", False),
         (r"$i^2$", r"$-1$", "complex", True),
+        # complex-strict: complex で True だが strict で False → False
+        (r"$i^2$", r"$-1$", "complex-strict", False),
+        # complex-strict: 完全一致 → 両方 True
+        (r"$-1$", r"$-1$", "complex-strict", True),
     ],
 )
 def test_verify(

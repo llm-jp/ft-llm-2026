@@ -40,7 +40,7 @@ from math_eval.main import parse_and_verify
         (r"$100", r"100 dollars", True),
         (r"10 kg", r"12 kilograms", False),
         (r"5 m", r"6 meters", False),
-        (r"1 m", r"100 cm", False),  # Unit conversion not handled
+        (r"1 m", r"100 cm", False),
     ],
 )
 def test_verify(prediction: str, gold: str, expected: bool) -> None:
