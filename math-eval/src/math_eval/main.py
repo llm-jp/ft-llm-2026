@@ -632,12 +632,12 @@ def _verify_degree_radian(prediction: str, gold: str) -> bool:
         if p_has_deg:
             parsed_rad = _extended_parse(_deg_to_rad(prediction))
             parsed_gold = _extended_parse(gold)
-            if verify(parsed_rad, parsed_gold):
+            if verify(parsed_gold, parsed_rad):
                 return True
         if g_has_deg:
             parsed_pred = _extended_parse(prediction)
             parsed_rad = _extended_parse(_deg_to_rad(gold))
-            if verify(parsed_pred, parsed_rad):
+            if verify(parsed_rad, parsed_pred):
                 return True
     except Exception:
         pass
@@ -712,10 +712,10 @@ def _merge_math_blocks(text: str) -> str:
 # ネストされたデリミタの正規化: $\(...\)$ → $...$, $\[...\]$ → $...$
 _NESTED_DELIM_RE = re.compile(
     r"^(\$\$|\$)"  # 外側の開きデリミタ
-    r"\s*\\[(\[]"  # 内側の開きデリミタ (\( or \[)
+    r"\s*\\(?:\(|\[)"  # 内側の開きデリミタ (\( or \[)
     r"\s*"
     r"(.*?)"  # 中身
-    r"\s*\\[)\]]"  # 内側の閉じデリミタ (\) or \])
+    r"\s*\\(?:\)|\])"  # 内側の閉じデリミタ (\) or \])
     r"\s*(\$\$|\$)$",  # 外側の閉じデリミタ
     re.DOTALL,
 )
@@ -1340,7 +1340,7 @@ def _verify_bare_keywords(prediction: str, gold: str) -> bool:
     try:
         parsed_p = _extended_parse(pred_converted)
         parsed_g = _extended_parse(gold_converted)
-        return verify(parsed_p, parsed_g)
+        return verify(parsed_g, parsed_p)
     except Exception:
         return False
 
@@ -1359,7 +1359,7 @@ def _verify_decimal_fraction(prediction: str, gold: str) -> bool:
     try:
         parsed_p = _extended_parse(pred_converted)
         parsed_g = _extended_parse(gold_converted)
-        return verify(parsed_p, parsed_g)
+        return verify(parsed_g, parsed_p)
     except Exception:
         return False
 
@@ -1471,12 +1471,12 @@ def _verify_single(
 
 # 先頭のノイズトークン（句読点、日本語テキスト、マークダウン記法等）にマッチする正規表現。
 # 数式の開始文字（$, \, 数字, 英字, 括弧, 符号）以外を先頭から除去する。
-_NOISE_PREFIX_RE = re.compile(r"^[^\$\\0-9a-zA-Z({[\-+]+")
+_NOISE_PREFIX_RE = re.compile(r"^[^\$\\0-9a-zA-Z({\[\-+]+")
 
 # デリミタ内のノイズ除去用: $<noise><math>$ → $<math>$
 _DELIMITED_NOISE_RE = re.compile(
-    r"^(\$\$|\$|\\[(\[])"  # 開きデリミタ
-    r"([^\$\\0-9a-zA-Z({[\-+]+)"  # ノイズ部分
+    r"^(\$\$|\$|\\\[|\\\()"  # 開きデリミタ: $$, $, \[, \(
+    r"([^\$\\0-9a-zA-Z({\[\-+]+)"  # ノイズ部分
     r"(.+)"  # 残りの式 + 閉じデリミタ
 )
 
